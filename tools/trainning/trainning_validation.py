@@ -238,7 +238,7 @@ def log_validation_particle_fluid(
         return_dict=False,
     )
 
-    # pred = apply_mask_on_velocity(pred, current_data, dilation_radius=5)
+    pred = apply_mask_on_velocity(pred, current_data, dilation_radius=5)
 
     results = {
         "sample_index": sample_idx,
