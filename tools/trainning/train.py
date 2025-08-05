@@ -113,9 +113,9 @@ def main(cfg):
     denoising_unet = UNet3DsModel(
         in_channels=cfg.model.in_channels,
         out_channels=cfg.model.out_channels,
-        down_block_types=("DownBlock3D", "DownBlock3D", "DownBlock3D", "DownBlock3D"),
-        up_block_types=("UpBlock3D", "UpBlock3D", "UpBlock3D", "UpBlock3D"),
-        block_out_channels=(64, 128, 192, 256),
+        down_block_types=cfg.model.down_block_types,
+        up_block_types=cfg.model.up_block_types,
+        block_out_channels=cfg.model.block_out_channels,
         add_attention=cfg.model.add_attention,
     )
     net = Net(denoising_unet)

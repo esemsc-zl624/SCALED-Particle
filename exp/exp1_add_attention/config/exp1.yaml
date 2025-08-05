@@ -24,6 +24,9 @@ model:
   add_attention: true
   in_channels: 16
   out_channels: 8
+  down_block_types: ("DownBlock3D", "AttnDownBlock3D", "AttnDownBlock3D", "AttnDownBlock3D")
+  up_block_types: ("AttnUpBlock3D", "AttnUpBlock3D", "AttnUpBlock3D", "UpBlock3D")
+  block_out_channels: (64, 128, 192, 256)
 
 val:
   validation_steps: 10000
