@@ -17,6 +17,7 @@ from diffusers.utils.torch_utils import randn_tensor
 from einops import rearrange
 import matplotlib.pyplot as plt
 
+
 @dataclass
 class Pose2ImagePipelineOutput(BaseOutput):
     images: Union[torch.Tensor, np.ndarray]
@@ -177,8 +178,8 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
         # Prepare extra step kwargs.
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
-        vis_steps = []  
-        step_indices = []
+        # vis_steps = []
+        # step_indices = []
 
         # denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
@@ -220,14 +221,6 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
                     noise_pred, t, latents, **extra_step_kwargs, return_dict=False
                 )
                 latents = pred_sample
-
-                # ✅ 收集每5步的可视化切片
-                if i % 5 == 0:
-                    with torch.no_grad():
-                        vis_tensor = latents[0].detach().cpu()  # (C, D, H, W)
-                        vis_steps.append(vis_tensor[0][depth//2])
-                        step_indices.append(i)
-
                 # call the callback, if provided
                 if i == len(timesteps) - 1 or (
                     (i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0
@@ -237,19 +230,27 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
                         step_idx = i // getattr(self.scheduler, "order", 1)
                         callback(step_idx, t, latents)
 
-            # ✅ 推理结束后绘图
-            fig, axs = plt.subplots(1, len(vis_steps), figsize=(3 * len(vis_steps), 3))
-            if len(vis_steps) == 1:
-                axs = [axs]
-            for ax, img, idx in zip(axs, vis_steps, step_indices):
-                ax.imshow(img, cmap="viridis")
-                ax.set_title(f"Step {idx}")
-                ax.axis("off")
+                # Denoising Progress Visualization
+                # ✅ 收集每5步的可视化切片
+                # if i % 5 == 0:
+                #     with torch.no_grad():
+                #         vis_tensor = latents[0].detach().cpu()  # (C, D, H, W)
+                #         vis_steps.append(vis_tensor[0][depth // 2])
+                #         step_indices.append(i)
 
-            from datetime import datetime
+            # # ✅ 推理结束后绘图
+            # fig, axs = plt.subplots(1, len(vis_steps), figsize=(3 * len(vis_steps), 3))
+            # if len(vis_steps) == 1:
+            #     axs = [axs]
+            # for ax, img, idx in zip(axs, vis_steps, step_indices):
+            #     ax.imshow(img, cmap="viridis")
+            #     ax.set_title(f"Step {idx}")
+            #     ax.axis("off")
 
-            plt.tight_layout()
-            plt.savefig(f"infer_step/{datetime.now()}_denoising_progress.png")
-            plt.close()
+            # from datetime import datetime
+
+            # plt.tight_layout()
+            # plt.savefig(f"infer_step/{datetime.now()}_denoising_progress.png")
+            # plt.close()
 
         return latents
