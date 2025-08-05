@@ -1,0 +1,17 @@
+[project]
+name = "scaled-particle"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "accelerate>=1.9.0",
+    "diffusers>=0.34.0",
+    "einops>=0.8.1",
+    "matplotlib>=3.10.5",
+    "numpy>=2.2.6",
+    "omegaconf>=2.3.0",
+    "transformers>=4.54.1",
+    "wandb>=0.21.0",
+    "xformers>=0.0.31.post1",
+]
