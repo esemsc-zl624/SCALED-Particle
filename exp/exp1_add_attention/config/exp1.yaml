@@ -1,9 +1,12 @@
 solver:  
   gradient_accumulation_steps: 1
+  per_device_batch_size: 1
+  logging_steps: 100
+  resume_from_checkpoint: ''
   mixed_precision: 'fp16'
   enable_xformers_memory_efficient_attention: false
   gradient_checkpointing: false 
-  max_train_steps: 200000
+  max_train_steps: 100000
   max_grad_norm: 1.0
   # lr
   learning_rate: 1e-5
@@ -17,11 +20,21 @@ solver:
   adam_weight_decay:  1.0e-2
   adam_epsilon: 1.0e-8
 
+model:
+  add_attention: true
+  in_channels: 16
+  out_channels: 8
+
 val:
   validation_steps: 10000
   validation_steps_tuple: []
 
-dataset_path: data/couple_spout_3D
+dataset:
+  dataset_path: data/couple_spout_3D
+  depth: 256
+  height: 64
+  width: 64
+  skip_timestep: 1
 
 noise_scheduler_kwargs:
   num_train_timesteps: 1000
@@ -30,9 +43,7 @@ noise_scheduler_kwargs:
   beta_schedule:       "linear"
   steps_offset:        1
   clip_sample:         false
-
-train_bs: 1
-logging_steps: 100
+  prediction_type: "v_prediction"
 
 weight_dtype: 'fp32'  # [fp16, fp32]
 uncond_ratio: 0.
@@ -40,10 +51,6 @@ noise_offset: 0.
 snr_gamma: 0.
 enable_zero_snr: True 
 
-skip_timestep: 1
-seed: 12580
-resume_from_checkpoint: ''
-exp_name: '1'
+seed: 42
+exp_name: 'exp1_add_attention' 
 output_dir: 'exp'
-
-prediction_type: "v_prediction"

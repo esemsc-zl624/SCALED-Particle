@@ -56,6 +56,13 @@ def main(cfg):
         kwargs_handlers=[kwargs],
     )
 
+    # Initialize wandb
+    if accelerator.is_main_process:
+        wandb.init(
+            project="scaled-particle-simulation",
+            name=f"{cfg.exp_name}-{cfg.solver.learning_rate}",
+        )
+
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -97,19 +104,19 @@ def main(cfg):
         sched_kwargs.update(
             rescale_betas_zero_snr=True,
             timestep_spacing="trailing",
-            prediction_type=cfg.prediction_type,
+            prediction_type=cfg.noise_scheduler_kwargs.prediction_type,
         )
     sched_kwargs.update({"beta_schedule": "scaled_linear"})
     train_noise_scheduler = DDIMScheduler(**sched_kwargs)
 
     # Initialize the model
     denoising_unet = UNet3DsModel(
-        in_channels=16,
-        out_channels=8,
+        in_channels=cfg.model.in_channels,
+        out_channels=cfg.model.out_channels,
         down_block_types=("DownBlock3D", "DownBlock3D", "DownBlock3D", "DownBlock3D"),
         up_block_types=("UpBlock3D", "UpBlock3D", "UpBlock3D", "UpBlock3D"),
         block_out_channels=(64, 128, 192, 256),
-        add_attention=False,
+        add_attention=cfg.model.add_attention,
     )
     net = Net(denoising_unet)
     denoising_unet.requires_grad_(True)
@@ -130,7 +137,7 @@ def main(cfg):
         learning_rate = (
             cfg.solver.learning_rate
             * cfg.solver.gradient_accumulation_steps
-            * cfg.train_bs
+            * cfg.solver.per_device_batch_size
             * accelerator.num_processes
         )
     else:
@@ -158,30 +165,21 @@ def main(cfg):
         eps=cfg.solver.adam_epsilon,
     )
 
-    width = 64
-    height = 64
-    depth = 256
-
-    wandb.init(
-        project="scaled-particle-simulation",
-        name=f"{cfg.dataset_path}-grid_size_{depth}x{height}x{width}",
-    )
-
     # Load the dataset
     train_dataset = ParticleFluidDataset(
-        data_dir=cfg.dataset_path,
-        skip_timestep=cfg.skip_timestep,
+        data_dir=cfg.dataset.dataset_path,
+        skip_timestep=cfg.dataset.skip_timestep,
         time_steps_list=[i for i in range(1, 200)],
     )
     val_dataset = ParticleFluidDataset(
-        data_dir=cfg.dataset_path,
-        skip_timestep=cfg.skip_timestep,
+        data_dir=cfg.dataset.dataset_path,
+        skip_timestep=cfg.dataset.skip_timestep,
         time_steps_list=[i for i in range(200, 250)],
     )
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=cfg.train_bs,
+        batch_size=cfg.solver.per_device_batch_size,
         shuffle=True,
         num_workers=8,
         drop_last=True,
@@ -217,7 +215,7 @@ def main(cfg):
 
     # Train!
     total_batch_size = (
-        cfg.train_bs
+        cfg.solver.per_device_batch_size
         * accelerator.num_processes
         * cfg.solver.gradient_accumulation_steps
     )
@@ -225,7 +223,9 @@ def main(cfg):
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {cfg.train_bs}")
+    logger.info(
+        f"  Instantaneous batch size per device = {cfg.solver.per_device_batch_size}"
+    )
     logger.info(
         f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}"
     )
@@ -237,9 +237,9 @@ def main(cfg):
     first_epoch = 0
 
     # Potentially load in the weights and states from a previous save
-    if cfg.resume_from_checkpoint:
-        if cfg.resume_from_checkpoint != "latest":
-            resume_dir = cfg.resume_from_checkpoint
+    if cfg.solver.resume_from_checkpoint:
+        if cfg.solver.resume_from_checkpoint != "latest":
+            resume_dir = cfg.solver.resume_from_checkpoint
         else:
             resume_dir = save_dir
         # Get the most recent checkpoint
@@ -343,18 +343,21 @@ def main(cfg):
                     loss = loss.mean()
 
                 # Gather the losses across all processes for logging (if we use distributed training).
-                avg_loss = accelerator.gather(loss.repeat(cfg.train_bs)).mean()
+                avg_loss = accelerator.gather(
+                    loss.repeat(cfg.solver.per_device_batch_size)
+                ).mean()
                 train_loss += avg_loss.item() / cfg.solver.gradient_accumulation_steps
 
                 # log the loss
-                if global_step % cfg.logging_steps == 0:
-                    wandb.log(
-                        {
-                            "learning_rate": optimizer.param_groups[0]["lr"],
-                            "train_loss": train_loss,
-                        },
-                        step=global_step,
-                    )
+                if global_step % cfg.solver.logging_steps == 0:
+                    if accelerator.is_main_process:
+                        wandb.log(
+                            {
+                                "learning_rate": optimizer.param_groups[0]["lr"],
+                                "train_loss": train_loss,
+                            },
+                            step=global_step,
+                        )
 
                 # Backpropagate
                 accelerator.backward(loss)
@@ -390,9 +393,9 @@ def main(cfg):
                         ori_net = accelerator.unwrap_model(net)
                         results = log_validation_particle_fluid(
                             ori_net.denoising_unet,
-                            depth,
-                            height,
-                            width,
+                            cfg.dataset.depth,
+                            cfg.dataset.height,
+                            cfg.dataset.width,
                             train_noise_scheduler,
                             accelerator,
                             generator,
@@ -403,14 +406,14 @@ def main(cfg):
                         np.save(
                             os.path.join(
                                 sample_dir,
-                                f"evaluation_step{global_step}_sample{results['sample_index']}.npy",
+                                f"validation_step{global_step}_sample{results['sample_index']}.npy",
                             ),
                             results,
                         )
 
                         path = os.path.join(
                             sample_dir,
-                            f"evaluation_step{global_step}_sample{results['sample_index']}.png",
+                            f"validation_step{global_step}_sample{results['sample_index']}.png",
                         )
                         visualize_with_diff(
                             results["pred_future_velocity"],

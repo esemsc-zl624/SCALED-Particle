@@ -1,1 +1,0 @@
-python tools/trainning/train.py --config exp/1/config/fludized_bed.yaml

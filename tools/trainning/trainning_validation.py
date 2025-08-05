@@ -193,7 +193,7 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
 
             pred[b, c][~binary_mask] = base_velocity
 
-            return pred
+        return pred
 
 
 def log_validation_particle_fluid(
@@ -214,9 +214,6 @@ def log_validation_particle_fluid(
     dataset_len = len(valid_dataset)
     sample_idx = random.randint(0, dataset_len)
     current_data, future_data = valid_dataset[sample_idx]
-
-    # current_mask = (current_data_[7:].unsqueeze(0) == 1.0).bool().to("cuda")
-    # future_mask = (future_data_[7:].unsqueeze(0) == 1.0).bool().to("cuda")
 
     current_data = current_data.unsqueeze(0).to("cuda")
     future_data = future_data.unsqueeze(0).to("cuda")

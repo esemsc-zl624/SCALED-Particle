@@ -12,4 +12,6 @@ wheels/
 
 data
 wandb
-
+ckpt
+validation
+logs
