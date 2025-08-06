@@ -272,17 +272,17 @@ def main(cfg):
                 current_data = batch[0].to(weight_dtype)
                 future_data = batch[1].to(weight_dtype)
 
-                # # boundary condition
-                # boundary_mask = np.zeros_like(current_data, dtype=bool)
+                # boundary condition
+                boundary_mask = np.zeros_like(current_data, dtype=bool)
 
-                # boundary_mask[:, :, 0, :, :] = True          # front
-                # boundary_mask[:, :, 7, :, :] = True         # back
-                # boundary_mask[:, :, :, 0, :] = True          # top
-                # boundary_mask[:, :, :, 7, :] = True         # bottom
-                # boundary_mask[:, :, :, :, 0] = True          # left
-                # boundary_mask[:, :, :, :, 7] = True         # right
+                boundary_mask[:, :, 0, :, :] = True          # front
+                boundary_mask[:, :, 7, :, :] = True         # back
+                boundary_mask[:, :, :, 0, :] = True          # top
+                boundary_mask[:, :, :, 7, :] = True         # bottom
+                boundary_mask[:, :, :, :, 0] = True          # left
+                boundary_mask[:, :, :, :, 7] = True         # right
 
-                # boundary_condition = future_data[boundary_mask]
+                boundary_condition = future_data[boundary_mask]
 
                 # add noise
                 noise = torch.randn_like(future_data)
@@ -304,11 +304,10 @@ def main(cfg):
 
                 noisy_future_data = train_noise_scheduler.add_noise(
                     future_data, noise, timesteps
-                )  # noised future_data: [B, 3, D,  H, W]
+                )  # noised future_data: [B, 8, D, H, W]
                 input_latent = torch.cat(
-                    [current_data, noisy_future_data], dim=1
-                )  # [B, 9+3+3, D,  H, W]
-                # input_latent = torch.cat([current_data, noisy_future_data], dim=1)  # [B, 3+3, D,  H, W]
+                    [current_data, boundary_condition, noisy_future_data], dim=1
+                )  # [B, 8+8+8, D, H, W]
 
                 if train_noise_scheduler.prediction_type == "epsilon":
                     target = noise
