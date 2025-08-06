@@ -60,6 +60,11 @@ noise_scheduler_kwargs:
   clip_sample:         false
   prediction_type: "v_prediction"
 
+inference:
+  dilation_radius: 3
+  num_inference_steps: 100
+  
+
 weight_dtype: 'fp32'  # [fp16, fp32]
 uncond_ratio: 0.
 noise_offset: 0.
