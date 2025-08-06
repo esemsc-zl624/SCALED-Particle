@@ -30,7 +30,7 @@ import sys
 import os
 import numpy as np
 from trainning_validation import (
-    log_validation_particle_fluid,
+    log_validation,
     visualize_with_diff,
     logger,
     compute_snr,
@@ -272,6 +272,18 @@ def main(cfg):
                 current_data = batch[0].to(weight_dtype)
                 future_data = batch[1].to(weight_dtype)
 
+                # # boundary condition
+                # boundary_mask = np.zeros_like(current_data, dtype=bool)
+
+                # boundary_mask[:, :, 0, :, :] = True          # front
+                # boundary_mask[:, :, 7, :, :] = True         # back
+                # boundary_mask[:, :, :, 0, :] = True          # top
+                # boundary_mask[:, :, :, 7, :] = True         # bottom
+                # boundary_mask[:, :, :, :, 0] = True          # left
+                # boundary_mask[:, :, :, :, 7] = True         # right
+
+                # boundary_condition = future_data[boundary_mask]
+
                 # add noise
                 noise = torch.randn_like(future_data)
                 if cfg.noise_offset > 0:
@@ -391,7 +403,7 @@ def main(cfg):
                         )
 
                         ori_net = accelerator.unwrap_model(net)
-                        results = log_validation_particle_fluid(
+                        results = log_validation(
                             ori_net.denoising_unet,
                             cfg.dataset.depth,
                             cfg.dataset.height,

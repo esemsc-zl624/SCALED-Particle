@@ -58,68 +58,6 @@ def compute_snr(noise_scheduler, timesteps):
     return snr
 
 
-def log_validation(
-    denoising_unet,
-    depth,
-    height,
-    width,
-    scheduler,
-    accelerator,
-    generator=None,
-    valid_dataset=None,
-):
-    logger.info("Running validation... ")
-    if generator is None:
-        generator = torch.manual_seed(42)
-
-    dataset_len = len(valid_dataset)
-    sample_idx = random.randint(0, dataset_len)
-    ori_data, gt_result = valid_dataset[sample_idx]
-
-    previous_value = ori_data[:3].unsqueeze(0).to("cuda")
-    next_value = gt_result[:3].unsqueeze(0).to("cuda")
-    control_value = ori_data[3:].unsqueeze(0).to("cuda")
-    background_value = control_value.clone().bool()
-    back_data = next_value.clone()
-    back_data[:, :, 1:-1] = 1
-    back_data[:, 0:1][background_value] = 0
-    back_data[:, 1:2][background_value] = 0
-    back_data[:, 2:3][background_value] = 0
-
-    pipe = SCALEDUrbanFlowPipeline(
-        denoising_unet,
-        scheduler=scheduler,
-    )
-    pipe = pipe.to(accelerator.device)
-
-    pred = pipe(
-        previous_value,
-        back_data,
-        num_inference_steps=100,
-        guidance_scale=0,
-        depth=depth,
-        height=height,
-        width=width,
-        generator=generator,
-        return_dict=False,
-    )
-
-    results = {}
-    # results["WithoutBackground"] = {
-    #     "prediction_flow": pred.detach().cpu().numpy()[0],
-    #     "gt_flow": next_value.detach().cpu().numpy()[0],
-    #     "original_flow": previous_value.detach().cpu().numpy()[0],
-    # }
-    results["WithoutBackground"] = {
-        "position_mask": pred.detach().cpu().numpy()[0],
-        "future_position_mask": next_value.detach().cpu().numpy()[0],
-        "original_position_mask": previous_value.detach().cpu().numpy()[0],
-    }
-
-    del pipe
-    return results
-
-
 def dilate_mask_square_3d(mask: torch.Tensor, radius: int) -> torch.Tensor:
     """
     3D方形膨胀：对bool类型mask进行立方体卷积，半径为radius。
@@ -196,7 +134,7 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         return pred
 
 
-def log_validation_particle_fluid(
+def log_validation(
     denoising_unet,
     depth,
     height,
