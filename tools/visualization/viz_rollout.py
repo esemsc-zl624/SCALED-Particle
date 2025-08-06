@@ -12,12 +12,12 @@ import argparse
 
 
 def main(input_dir, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
 
     # 获取按顺序排列的 T 个 .npy 文件名
     npy_files = sorted([f for f in os.listdir(input_dir) if f.endswith(".npy")])
     T = len(npy_files)
 
-    os.makedirs(output_dir, exist_ok=True)
 
     position_frames = []
     velocity_frames = []
