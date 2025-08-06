@@ -206,6 +206,7 @@ def log_validation_particle_fluid(
     generator=None,
     valid_dataset=None,
     num_inference_steps=100,
+    dilation_radius=5,
 ):
     logger.info("Running validation... ")
     if generator is None:
@@ -235,7 +236,7 @@ def log_validation_particle_fluid(
         return_dict=False,
     )
 
-    pred = apply_mask_on_velocity(pred, current_data, dilation_radius=5)
+    pred = apply_mask_on_velocity(pred, current_data, dilation_radius=dilation_radius)
 
     results = {
         "sample_index": sample_idx,

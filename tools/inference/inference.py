@@ -1,10 +1,5 @@
 import os
 import sys
-
-sys.path.append(
-    "/scratch_dgxl/zl624/workspace/SCALED-Scalable-Generative-Foundational-Model-for-Computational-Physics-main/tools/trainning"
-)
-
 import json
 import torch
 import numpy as np
@@ -17,6 +12,8 @@ from scaled.pipelines.pipeline_ddim_scaled_particle_fluid import (
 )
 from diffusers import DDIMScheduler
 import torch.nn as nn
+from omegaconf import OmegaConf
+import argparse
 
 
 class Net(nn.Module):
@@ -115,42 +112,30 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
             return pred
 
 
-def visualize_particles(points, data_type, save_dir, filename):
+def main(cfg, weight_path):
+
+    save_dir = os.path.join(cfg.output_dir, cfg.exp_name, "inference", "npy")
     os.makedirs(save_dir, exist_ok=True)
-    plt.scatter(points[:, 0], points[:, 1], s=1, c=data_type, alpha=0.5)
-    plt.xlim(0.1, 0.9)
-    plt.ylim(0.1, 0.9)
-    plt.gca().set_aspect("equal", adjustable="box")
-    plt.savefig(os.path.join(save_dir, filename))
-    plt.close()
-
-
-def main():
-    # meta_path = "data/SFC/WaterRamps/metadata.json"
-    # weight_path = "outputs/unet1d_regression_experiment/model-20000.pth"
-    # sample_list = [f"sample_{i:05d}" for i in range(2)]
-
-    save_dir = "result_particle/8channel/npy/pred"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     denoising_unet = UNet3DsModel(
-        in_channels=16,
-        out_channels=8,
-        down_block_types=("DownBlock3D", "DownBlock3D", "DownBlock3D", "DownBlock3D"),
-        up_block_types=("UpBlock3D", "UpBlock3D", "UpBlock3D", "UpBlock3D"),
-        block_out_channels=(64, 128, 192, 256),
-        add_attention=False,
+        in_channels=cfg.model.in_channels,
+        out_channels=cfg.model.out_channels,
+        down_block_types=cfg.model.down_block_types,
+        up_block_types=cfg.model.up_block_types,
+        block_out_channels=cfg.model.block_out_channels,
+        add_attention=cfg.model.add_attention,
     )
     denoising_unet.requires_grad_(False)
-    weight = torch.load("exp_output/fludized_bed/mask/denoising_unet-100000.pth", map_location="cpu")
+    weight = torch.load(weight_path, map_location="cpu")
     denoising_unet.load_state_dict(weight, strict=False)
 
     net = Net(denoising_unet).to(device)
 
     val_dataset = ParticleFluidDataset(
-        data_dir="data/couple_spout_3D",
-        skip_timestep=1,
+        data_dir=cfg.dataset.dataset_path,
+        skip_timestep=cfg.dataset.skip_timestep,
         time_steps_list=[i for i in range(200, 250)],
     )
 
@@ -163,12 +148,13 @@ def main():
     )
 
     noise_scheduler_kwargs = {
-        "num_train_timesteps": 1000,
-        "beta_start": 0.00085,
-        "beta_end": 0.012,
-        "beta_schedule": "linear",
-        "steps_offset": 1,
-        "clip_sample": False,
+        "num_train_timesteps": cfg.noise_scheduler_kwargs.num_train_timesteps,
+        "beta_start": cfg.noise_scheduler_kwargs.beta_start,
+        "beta_end": cfg.noise_scheduler_kwargs.beta_end,
+        "beta_schedule": cfg.noise_scheduler_kwargs.beta_schedule,
+        "steps_offset": cfg.noise_scheduler_kwargs.steps_offset,
+        "clip_sample": cfg.noise_scheduler_kwargs.clip_sample,
+        "prediction_type": cfg.noise_scheduler_kwargs.prediction_type,
     }
 
     scheduler = DDIMScheduler(**noise_scheduler_kwargs)
@@ -178,13 +164,8 @@ def main():
         scheduler,
     )
 
-    num_inference_steps = 100
-    depth = 256
-    height = 64
-    width = 64
+    num_inference_steps = cfg.inference.num_inference_steps
     generator = torch.Generator(device=device)
-
-    weight_dtype = "fp32"
 
     current_data = next(iter(val_dataloader))[0].to(device)
     os.makedirs(save_dir, exist_ok=True)
@@ -194,20 +175,29 @@ def main():
             current_data,
             num_inference_steps=num_inference_steps,
             guidance_scale=0,
-            depth=depth,
-            height=height,
-            width=width,
+            depth=cfg.dataset.depth,
+            height=cfg.dataset.height,
+            width=cfg.dataset.width,
             generator=generator,
             return_dict=False,
         )
-        pred = apply_mask_on_velocity(pred, current_data, dilation_radius=3)
+        pred = apply_mask_on_velocity(
+            pred, current_data, dilation_radius=cfg.inference.dilation_radius
+        )
 
         # 更新current_data
         current_data = pred
 
-        # 保存每一步的mask
-        position_mask = pred.cpu().numpy()[0, :, :, :, :]
-        np.save(os.path.join(save_dir, f"prediction_{step:03d}.npy"), position_mask)
+        # 保存每一步的result
+        pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
+        np.save(os.path.join(save_dir, f"prediction_{step:03d}.npy"), pred_numpy)
+
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str)
+    parser.add_argument("--weight_path", type=str)
+    args = parser.parse_args()
+
+    config = OmegaConf.load(args.config)
+    main(config, args.weight_path)

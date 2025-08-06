@@ -400,7 +400,8 @@ def main(cfg):
                             accelerator,
                             generator,
                             val_dataset,
-                            num_inference_steps=100,
+                            num_inference_steps=cfg.inference.num_inference_steps,
+                            dilation_radius=cfg.inference.dilation_radius,
                         )
 
                         np.save(
