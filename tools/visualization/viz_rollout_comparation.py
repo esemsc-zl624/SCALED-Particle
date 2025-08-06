@@ -14,7 +14,7 @@ from tqdm import tqdm
 # 写一个脚本，将validation dataset 的值转换为 (-1,1) 的值，保存为npy
 # 或者直接normalize npy
 
-def visualize_rollout_comparasion(data_pre, data_gt, png_path):
+def visualize_onestep_comparasion(data_pre, data_gt, png_path):
     """
     Visualize the rollout comparasion of one timestep of data_pre and data_gt
     Args:
@@ -33,7 +33,14 @@ def visualize_rollout_comparasion(data_pre, data_gt, png_path):
     gs = gridspec.GridSpec(rows, cols, width_ratios=[1, 1, 1, 1, 1, 1, 1])
 
 
-    channel_names = ["Particle Velocity (X)", "Particle Velocity (Y)", "Particle Velocity (Z)", "Flow Velocity (X)", "Flow Velocity (Y)", "Flow Velocity (Z)", "Particle Position"]
+    channel_names = ["Particle Velocity (X)", 
+                     "Particle Velocity (Y)", 
+                     "Particle Velocity (Z)", 
+                     "Flow Velocity (X)", 
+                     "Flow Velocity (Y)", 
+                     "Flow Velocity (Z)", 
+                     "Particle Position",
+                     "Boundary Condition"]
 
     # Plot first 6 channels
     for i in range(6):
@@ -49,12 +56,12 @@ def visualize_rollout_comparasion(data_pre, data_gt, png_path):
 
     # Position Mask
     ax4 = plt.subplot(gs[0, 6])
-    im4 = ax4.imshow(data_pre[-1, depth // 2], vmin=-1, vmax=1)
+    im4 = ax4.imshow(data_pre[7, depth // 2], vmin=-1, vmax=1)
     ax4.set_title(f"{channel_names[6]}")
     ax4.axis("off")
 
     ax5 = plt.subplot(gs[1, 6])
-    im5 = ax5.imshow(data_gt[-1, depth // 2], vmin=-1, vmax=1)
+    im5 = ax5.imshow(data_gt[7, depth // 2], vmin=-1, vmax=1)
     # ax5.set_title(f"[{channel_names[6]}]")
     ax5.axis("off")
 
@@ -92,7 +99,7 @@ if __name__ == "__main__":
         data_gt = np.load(os.path.join(data_gt_dir, f"gt_{i+1:03d}.npy"))[0]
         png_path = os.path.join(png_dir, f"comparasion_{i:03d}.png")
 
-        visualize_rollout_comparasion(data_pre, data_gt, png_path)
+        visualize_onestep_comparasion(data_pre, data_gt, png_path)
 
     gif_path = os.path.join(eval_dir, "comparasion.gif")
     pngs_to_gif(png_dir, gif_path)
