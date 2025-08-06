@@ -14,7 +14,7 @@ uv pip install -e .
 ## 2. Using Conda
 
 ```bash
-conda create -n scaled python=3.10
+conda create -n scaled python=3.10 -y
 conda activate scaled
 
 cd your_path_to/SCALED-Particle
