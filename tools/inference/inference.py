@@ -205,7 +205,7 @@ def main(cfg, weight_path):
 
         # 保存每一步的result
         pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
-        np.save(os.path.join(save_dir, f"prediction_{step:03d}.npy"), pred_numpy)
+        np.save(os.path.join(save_dir, f"pred_{step:03d}.npy"), pred_numpy)
 
 
 if __name__ == "__main__":
