@@ -273,7 +273,7 @@ def main(cfg):
                 future_data = batch[1].to(weight_dtype)
 
                 # boundary condition
-                boundary_mask = np.zeros_like(current_data, dtype=bool)
+                boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
 
                 boundary_mask[:, :, 0, :, :] = True          # front
                 boundary_mask[:, :, 7, :, :] = True         # back
@@ -282,7 +282,7 @@ def main(cfg):
                 boundary_mask[:, :, :, :, 0] = True          # left
                 boundary_mask[:, :, :, :, 7] = True         # right
 
-                boundary_condition = future_data[boundary_mask]
+                boundary_condition = future_data * boundary_mask
 
                 # add noise
                 noise = torch.randn_like(future_data)
@@ -398,7 +398,7 @@ def main(cfg):
                             save_dir,
                             "denoising_unet",
                             global_step,
-                            total_limit=10,
+                            total_limit=20,
                         )
 
                         ori_net = accelerator.unwrap_model(net)
@@ -428,9 +428,9 @@ def main(cfg):
                             f"validation_step{global_step}_sample{results['sample_index']}.png",
                         )
                         visualize_with_diff(
-                            results["pred_future_velocity"],
-                            results["gt_future_velocity"],
-                            results["current_velocity"],
+                            results["pred_future_velocity"][:8],
+                            results["gt_future_velocity"][:8],
+                            results["current_velocity"][:8],
                             path,
                         )
 

@@ -88,7 +88,7 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
 
     for b in range(batch_size):
         # --- Step 1: 获取当前帧的 ground truth mask，并计算粒子个数 ---
-        current_mask = current_data[b, -1]  # (D, H, W)，值为 -1 或 1
+        current_mask = current_data[b, 7]  # (D, H, W)，值为 -1 或 1
         current_mask = (current_mask + 1) / 2  # 映射为 [0, 1]
         num_particle = int(torch.sum(current_mask).item())
 
@@ -96,7 +96,7 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         dilated_mask = dilate_mask_square_3d(current_mask.bool(), radius=1)
 
         # --- Step 3: 获取模型预测的 mask，并仅在膨胀区域内做 Top-K ---
-        pred_mask = pred[b, -1]
+        pred_mask = pred[b, 7]
         min_val = pred_mask.min()
         max_val = pred_mask.max()
         normalized_pred_mask = (pred_mask - min_val) / (max_val - min_val)  # [0, 1]
@@ -110,8 +110,8 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
 
         new_mask = torch.zeros_like(pred_mask)
         new_mask.view(-1)[topk_indices] = 1
-        new_mask = (new_mask * 2) - 1  # 映射为 [-1, 1]
-        pred[b, -1] = new_mask
+        new_mask = (new_mask * 2) - 1  # 映射为 [7, 1]
+        pred[b, 7] = new_mask
 
         # --- Step 4: 根据 mask 修改速度通道 ---
         binary_mask = ((new_mask + 1) / 2).bool()  # (D, H, W)
@@ -119,7 +119,7 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         for c in range(3):
             pred[b, c][binary_mask] = pred[b, c][binary_mask]  # 粒子区域保持原预测
             current_channel = current_data[b, c]
-            current_particle_mask = ((current_data[b, -1] + 1) / 2).bool()
+            current_particle_mask = ((current_data[b, 7] + 1) / 2).bool()
             background_mask = ~current_particle_mask
 
             if torch.sum(background_mask) > 0:
@@ -156,6 +156,20 @@ def log_validation(
 
     current_data = current_data.unsqueeze(0).to("cuda")
     future_data = future_data.unsqueeze(0).to("cuda")
+
+    # boundary condition
+    boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
+
+    boundary_mask[:, :, 0, :, :] = True          # front
+    boundary_mask[:, :, 7, :, :] = True         # back
+    boundary_mask[:, :, :, 0, :] = True          # top
+    boundary_mask[:, :, :, 7, :] = True         # bottom
+    boundary_mask[:, :, :, :, 0] = True          # left
+    boundary_mask[:, :, :, :, 7] = True         # right
+
+    boundary_condition = future_data * boundary_mask    
+
+    current_data = torch.cat([current_data, boundary_condition], dim=1)
 
     pipe = SCALEDParticleFluidPipeline(
         denoising_unet,
@@ -219,17 +233,17 @@ def visualize_with_diff(data_pre, data_gt, data_ori, filename):
 
     # Position Mask
     ax4 = plt.subplot(gs[6, 0])
-    im4 = ax4.imshow(data_pre[-1, depth // 2], vmin=-1, vmax=1)
+    im4 = ax4.imshow(data_pre[7, depth // 2], vmin=-1, vmax=1)
     ax4.set_title("Prediction Position Mask")
     ax4.axis("off")
 
     ax5 = plt.subplot(gs[6, 1])
-    im5 = ax5.imshow(data_gt[-1, depth // 2], vmin=-1, vmax=1)
+    im5 = ax5.imshow(data_gt[7, depth // 2], vmin=-1, vmax=1)
     ax5.set_title("Ground Truth Position Mask")
     ax5.axis("off")
 
     ax6 = plt.subplot(gs[6, 2])
-    im6 = ax6.imshow(data_ori[-1, depth // 2], vmin=-1, vmax=1)
+    im6 = ax6.imshow(data_ori[7, depth // 2], vmin=-1, vmax=1)
     ax6.set_title("Current Position Mask")
     ax6.axis("off")
 

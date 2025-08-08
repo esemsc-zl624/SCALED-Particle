@@ -168,8 +168,23 @@ def main(cfg, weight_path):
     generator = torch.Generator(device=device)
 
     current_data = next(iter(val_dataloader))[0].to(device)
+
     os.makedirs(save_dir, exist_ok=True)
     for step in tqdm(range(1, 49)):
+
+        # boundary condition
+        boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
+
+        boundary_mask[:, :, 0, :, :] = True  # front
+        boundary_mask[:, :, 7, :, :] = True  # back
+        boundary_mask[:, :, :, 0, :] = True  # top
+        boundary_mask[:, :, :, 7, :] = True  # bottom
+        boundary_mask[:, :, :, :, 0] = True  # left
+        boundary_mask[:, :, :, :, 7] = True  # right
+
+        boundary_condition = current_data * boundary_mask
+
+        current_data = torch.cat([current_data, boundary_condition], dim=1)
 
         pred = pipe(
             current_data,

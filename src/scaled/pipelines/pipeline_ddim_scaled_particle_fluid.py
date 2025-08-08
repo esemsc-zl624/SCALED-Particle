@@ -161,7 +161,7 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
         if do_classifier_free_guidance:
             negtive_previous_flow_value = torch.zeros_like(current_data)
 
-        num_channels_latents = self.denoising_unet.out_channels
+        num_channels_latents = self.denoising_unet.config.out_channels
 
         # latents is noise, 为什么要叫做latent？？
         latents = self.prepare_latents(
