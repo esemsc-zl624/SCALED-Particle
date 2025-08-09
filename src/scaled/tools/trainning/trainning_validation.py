@@ -9,32 +9,8 @@ from scaled.pipelines.pipeline_ddim_scaled_particle_fluid import (
     SCALEDParticleFluidPipeline,
 )
 import torch
-from scaled.model.unets.unet_3ds import UNet3DsModel
-import torch.nn as nn
-import torch.nn.functional as F
-
 
 from scaled.tools.inference.inference import apply_mask_on_velocity
-
-
-class Net(nn.Module):
-    def __init__(
-        self,
-        denoising_unet: UNet3DsModel,
-    ):
-        super().__init__()
-        self.denoising_unet = denoising_unet
-
-    def forward(
-        self,
-        noisy_latents,
-        timesteps,
-    ):
-        model_pred = self.denoising_unet(
-            noisy_latents,
-            timesteps,
-        ).sample
-        return model_pred
 
 
 def compute_snr(noise_scheduler, timesteps):

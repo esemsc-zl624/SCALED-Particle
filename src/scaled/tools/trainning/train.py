@@ -23,6 +23,7 @@ from diffusers import DDIMScheduler
 from diffusers.utils import check_min_version
 from diffusers.utils.import_utils import is_xformers_available
 from omegaconf import OmegaConf
+from scaled.model.scaled_particle import Net
 from scaled.model.unets.unet_3ds import UNet3DsModel
 from tqdm.auto import tqdm
 from scaled.utils.util import import_filename, seed_everything
@@ -34,7 +35,6 @@ from trainning_validation import (
     visualize_with_diff,
     logger,
     compute_snr,
-    Net,
 )
 
 import wandb
