@@ -1,6 +1,5 @@
-import torch
 import torch.nn as nn
-from src.scaled.model.unets.unet_3ds import UNet3DsModel
+from scaled.model.unets.unet_3ds import UNet3DsModel
 
 
 class Net(nn.Module):
