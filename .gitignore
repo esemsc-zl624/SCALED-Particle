@@ -15,3 +15,5 @@ wandb
 ckpt
 validation
 logs
+eval
+inference
