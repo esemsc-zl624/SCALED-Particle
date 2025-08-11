@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=exp2_bc
+#SBATCH --job-name=exp3_train
 #SBATCH --partition=dgxl_irp
 #SBATCH --qos=dgxl_irp_low
 
@@ -21,4 +21,5 @@
 # conda
 source /scratch_dgxl/zl624/miniconda3/etc/profile.d/conda.sh && conda activate scaled
 
-accelerate launch tools/trainning/train.py --config exp/exp3_complex_model/config/exp3.yaml
+accelerate launch src/scaled/tools/trainning/train.py --config exp/exp3_complex_model/config/exp3.yaml
+# python src/scaled/tools/trainning/train.py --config exp/exp3_complex_model/config/exp3.yaml
