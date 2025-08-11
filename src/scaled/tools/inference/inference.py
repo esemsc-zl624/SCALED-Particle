@@ -91,7 +91,7 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
 
 def main(cfg, weight_path):
 
-    save_dir = os.path.join(cfg.output_dir, cfg.exp_name, "inference", "npy")
+    save_dir = os.path.join(cfg.output_dir, cfg.exp_name, "rollout", "npy")
     os.makedirs(save_dir, exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
