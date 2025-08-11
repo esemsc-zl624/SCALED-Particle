@@ -39,6 +39,7 @@ from trainning_validation import (
 
 import wandb
 
+
 # initialize the enviroment
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "../../scaled"))
@@ -276,11 +277,11 @@ def main(cfg):
                 boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
 
                 boundary_mask[:, :, 0, :, :] = True          # front
-                boundary_mask[:, :, 7, :, :] = True         # back
+                boundary_mask[:, :, -1, :, :] = True         # back
                 boundary_mask[:, :, :, 0, :] = True          # top
-                boundary_mask[:, :, :, 7, :] = True         # bottom
+                boundary_mask[:, :, :, -1, :] = True         # bottom
                 boundary_mask[:, :, :, :, 0] = True          # left
-                boundary_mask[:, :, :, :, 7] = True         # right
+                boundary_mask[:, :, :, :, -1] = True         # right
 
                 boundary_condition = future_data * boundary_mask
 

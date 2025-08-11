@@ -167,22 +167,25 @@ def main(cfg, weight_path):
     num_inference_steps = cfg.inference.num_inference_steps
     generator = torch.Generator(device=device)
 
-    current_data = next(iter(val_dataloader))[0].to(device)
+    current_data = None
 
     os.makedirs(save_dir, exist_ok=True)
-    for step in tqdm(range(1, 49)):
+    for step, data in tqdm(enumerate(val_dataloader)):
+        if step == 0:
+            current_data = data[0].to(device)
+        future_data = data[1].to(device)
 
         # boundary condition
         boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
 
         boundary_mask[:, :, 0, :, :] = True  # front
-        boundary_mask[:, :, 7, :, :] = True  # back
+        boundary_mask[:, :, -1, :, :] = True  # back
         boundary_mask[:, :, :, 0, :] = True  # top
-        boundary_mask[:, :, :, 7, :] = True  # bottom
+        boundary_mask[:, :, :, -1, :] = True  # bottom
         boundary_mask[:, :, :, :, 0] = True  # left
-        boundary_mask[:, :, :, :, 7] = True  # right
+        boundary_mask[:, :, :, :, -1] = True  # right
 
-        boundary_condition = current_data * boundary_mask
+        boundary_condition = future_data * boundary_mask
 
         current_data = torch.cat([current_data, boundary_condition], dim=1)
 
@@ -205,7 +208,7 @@ def main(cfg, weight_path):
 
         # 保存每一步的result
         pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
-        np.save(os.path.join(save_dir, f"pred_{step:03d}.npy"), pred_numpy)
+        np.save(os.path.join(save_dir, f"pred_{step+1:03d}.npy"), pred_numpy)
 
 
 if __name__ == "__main__":
