@@ -30,7 +30,11 @@ def visualize_onestep_comparasion(data_pred, data_gt, png_path, step=None, slice
     width = data_pred.shape[3]  # W
 
     rows, cols = 2, 7
-    fig = plt.figure(figsize=(2 * cols, 2 * rows), dpi=100)
+    if slice == "xy":
+        fig = plt.figure(figsize=(2 * cols, 2 * rows), dpi=100)
+    else:
+        fig = plt.figure(figsize=(2 * cols, 1 * rows), dpi=100)
+
     gs = gridspec.GridSpec(rows, cols)
 
     channel_names = [
@@ -90,7 +94,6 @@ def visualize_onestep_comparasion(data_pred, data_gt, png_path, step=None, slice
     ax5.imshow(gt_slice[7], vmin=-1, vmax=1)
     ax5.axis("off")
 
-
     if step is not None:
         fig.suptitle(f"Slice: {slice}    Step: {step}", fontsize=16)
 
@@ -136,16 +139,19 @@ if __name__ == "__main__":
     png_dir = os.path.join(eval_dir, "png")
     os.makedirs(png_dir, exist_ok=True)
 
-
-    for slice in ["xy", "xz", "yz"]:    
+    for slice in ["xy", "xz", "yz"]:
         for i in tqdm(range(1, 48)):
             data_pred = np.load(
                 os.path.join(data_pred_dir, f"pred_{i:03d}.npy")
             )  # (8, D, H, W)
-            data_gt = np.load(os.path.join(data_gt_dir, f"gt_{i:03d}.npy"))  # (8, D, H, W)
+            data_gt = np.load(
+                os.path.join(data_gt_dir, f"gt_{i:03d}.npy")
+            )  # (8, D, H, W)
             png_path = os.path.join(png_dir, f"comparasion_{i:03d}_{slice}.png")
 
-            visualize_onestep_comparasion(data_pred, data_gt, png_path, step=i, slice=slice)
+            visualize_onestep_comparasion(
+                data_pred, data_gt, png_path, step=i, slice=slice
+            )
 
         gif_path = os.path.join(eval_dir, f"comparasion_{slice}.gif")
         pngs_to_gif(png_dir, gif_path, slice=slice)
