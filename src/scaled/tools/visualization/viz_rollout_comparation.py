@@ -16,7 +16,7 @@ import argparse
 # 或者直接normalize npy
 
 
-def visualize_onestep_comparasion(data_pred, data_gt, png_path, slice="xy"):
+def visualize_onestep_comparasion(data_pred, data_gt, png_path, step=None, slice="xy"):
     """
     Visualize the rollout comparison of one timestep of data_pred and data_gt
     Args:
@@ -90,15 +90,19 @@ def visualize_onestep_comparasion(data_pred, data_gt, png_path, slice="xy"):
     ax5.imshow(gt_slice[7], vmin=-1, vmax=1)
     ax5.axis("off")
 
+
+    if step is not None:
+        fig.suptitle(f"Slice: {slice}    Step: {step}", fontsize=16)
+
     # Adjust layout to avoid overlap
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
 
     # Save the figure with higher resolution
     plt.savefig(png_path, dpi=300)
     plt.close(fig)
 
 
-def pngs_to_gif(png_dir, save_path):
+def pngs_to_gif(png_dir, save_path, slice="xy"):
     """
     Convert a directory of PNG images to a GIF
     Args:
@@ -107,7 +111,8 @@ def pngs_to_gif(png_dir, save_path):
     Returns:
         None
     """
-    png_files = sorted(glob.glob(os.path.join(png_dir, "*.png")))
+
+    png_files = sorted(glob.glob(os.path.join(png_dir, f"*_{slice}.png")))
     images = [Image.open(file) for file in png_files]
     images[0].save(
         save_path, save_all=True, append_images=images[1:], duration=1000, loop=0
@@ -131,16 +136,16 @@ if __name__ == "__main__":
     png_dir = os.path.join(eval_dir, "png")
     os.makedirs(png_dir, exist_ok=True)
 
-    slice = "yz"
 
-    for i in tqdm(range(1, 48)):
-        data_pred = np.load(
-            os.path.join(data_pred_dir, f"pred_{i:03d}.npy")
-        )  # (8, D, H, W)
-        data_gt = np.load(os.path.join(data_gt_dir, f"gt_{i:03d}.npy"))  # (8, D, H, W)
-        png_path = os.path.join(png_dir, f"comparasion_{i:03d}_{slice}.png")
+    for slice in ["xy", "xz", "yz"]:    
+        for i in tqdm(range(1, 48)):
+            data_pred = np.load(
+                os.path.join(data_pred_dir, f"pred_{i:03d}.npy")
+            )  # (8, D, H, W)
+            data_gt = np.load(os.path.join(data_gt_dir, f"gt_{i:03d}.npy"))  # (8, D, H, W)
+            png_path = os.path.join(png_dir, f"comparasion_{i:03d}_{slice}.png")
 
-        visualize_onestep_comparasion(data_pred, data_gt, png_path, slice=slice)
+            visualize_onestep_comparasion(data_pred, data_gt, png_path, step=i, slice=slice)
 
-    gif_path = os.path.join(eval_dir, "comparasion.gif")
-    pngs_to_gif(png_dir, gif_path)
+        gif_path = os.path.join(eval_dir, f"comparasion_{slice}.gif")
+        pngs_to_gif(png_dir, gif_path, slice=slice)
