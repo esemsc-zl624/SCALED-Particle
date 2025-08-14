@@ -16,4 +16,7 @@ ckpt
 validation
 logs
 eval
-inference
+rollout
+*.npy
+*.gif
+*.png
