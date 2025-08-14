@@ -48,7 +48,9 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         num_particle = int(torch.sum(current_mask).item())
 
         # --- Step 2: 计算膨胀 mask ---
-        dilated_mask = dilate_mask_square_3d(current_mask.bool(), radius=1)
+        dilated_mask = dilate_mask_square_3d(
+            current_mask.bool(), radius=dilation_radius
+        )
 
         # --- Step 3: 获取模型预测的 mask，并仅在膨胀区域内做 Top-K ---
         pred_mask = pred[b, 7]
@@ -89,10 +91,28 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         return pred
 
 
+def get_boundary_condition(current_data, future_data, halo=4):
+    boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
+
+    boundary_mask[:, :, :halo, :, :] = True  # front
+    boundary_mask[:, :, -halo:, :, :] = True  # back
+    boundary_mask[:, :, :, :halo, :] = True  # top
+    boundary_mask[:, :, :, -halo:, :] = True  # bottom
+    boundary_mask[:, :, :, :, :halo] = True  # left
+    boundary_mask[:, :, :, :, -halo:] = True  # right
+
+    boundary_condition = future_data * boundary_mask
+
+    return boundary_condition, boundary_mask
+
+
 def find_latest_ckpt(ckpt_dir):
     # 过滤出所有 checkpoint 文件
-    ckpt_files = [f for f in os.listdir(ckpt_dir) 
-                  if f.startswith("denoising_unet-") and f.endswith(".pth")]
+    ckpt_files = [
+        f
+        for f in os.listdir(ckpt_dir)
+        if f.startswith("denoising_unet-") and f.endswith(".pth")
+    ]
     if not ckpt_files:
         raise FileNotFoundError(f"No checkpoint files found in {ckpt_dir}")
 
@@ -113,7 +133,7 @@ def main(cfg, weight_path):
     if weight_path is None:
         ckpt_dir = os.path.join(cfg.output_dir, cfg.exp_name, "ckpt")
         weight_path = find_latest_ckpt(ckpt_dir)
-    
+
     print(f"Using model checkpoint: {weight_path}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -167,24 +187,14 @@ def main(cfg, weight_path):
     generator = torch.Generator(device=device)
 
     os.makedirs(save_dir, exist_ok=True)
-    for step, data in tqdm(enumerate(val_dataloader)):
+    for step, data in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
         if step == 0:
             current_data = data[0].to(device)
         future_data = data[1].to(device)
 
-
-        boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
-
-        halo = 4
-        boundary_mask[:, :, :halo, :, :] = True  # front
-        boundary_mask[:, :, -halo:, :, :] = True  # back
-        boundary_mask[:, :, :, :halo, :] = True  # top
-        boundary_mask[:, :, :, -halo:, :] = True  # bottom
-        boundary_mask[:, :, :, :, :halo] = True  # left
-        boundary_mask[:, :, :, :, -halo:] = True  # right
-
-        boundary_condition = future_data * boundary_mask
-
+        boundary_condition, boundary_mask = get_boundary_condition(
+            current_data, future_data
+        )
         current_data = torch.cat([current_data, boundary_condition], dim=1)
 
         pred = pipe(
@@ -200,14 +210,11 @@ def main(cfg, weight_path):
         pred = apply_mask_on_velocity(
             pred, current_data, dilation_radius=cfg.inference.dilation_radius
         )
-
-        # 更新current_data
+        pred = torch.where(boundary_mask, future_data, pred)
         current_data = pred
 
-        current_data[boundary_mask] = future_data[boundary_mask]
-
         # 保存每一步的result
-        pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
+        # pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
         # np.save(os.path.join(save_dir, f"pred_{step+1:03d}.npy"), pred_numpy)
 
 

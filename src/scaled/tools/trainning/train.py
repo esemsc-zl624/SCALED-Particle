@@ -36,6 +36,7 @@ from trainning_validation import (
     logger,
     compute_snr,
 )
+from scaled.tools.inference.inference import get_boundary_condition
 
 import wandb
 
@@ -273,18 +274,6 @@ def main(cfg):
                 current_data = batch[0].to(weight_dtype)
                 future_data = batch[1].to(weight_dtype)
 
-                # boundary condition
-                boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
-
-                boundary_mask[:, :, 0, :, :] = True          # front
-                boundary_mask[:, :, -1, :, :] = True         # back
-                boundary_mask[:, :, :, 0, :] = True          # top
-                boundary_mask[:, :, :, -1, :] = True         # bottom
-                boundary_mask[:, :, :, :, 0] = True          # left
-                boundary_mask[:, :, :, :, -1] = True         # right
-
-                boundary_condition = future_data * boundary_mask
-
                 # add noise
                 noise = torch.randn_like(future_data)
                 if cfg.noise_offset > 0:
@@ -306,6 +295,9 @@ def main(cfg):
                 noisy_future_data = train_noise_scheduler.add_noise(
                     future_data, noise, timesteps
                 )  # noised future_data: [B, 8, D, H, W]
+                boundary_condition, boundary_mask = get_boundary_condition(
+                    current_data, future_data
+                )
                 input_latent = torch.cat(
                     [current_data, boundary_condition, noisy_future_data], dim=1
                 )  # [B, 8+8+8, D, H, W]
