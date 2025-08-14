@@ -2,11 +2,11 @@ solver:
   gradient_accumulation_steps: 1
   per_device_batch_size: 1
   logging_steps: 100
-  resume_from_checkpoint: '/scratch_dgxl/zl624/workspace/SCALED-Particle/exp/exp2_boundary/ckpt/denoising_unet-190000.pth'
+  resume_from_checkpoint: '/scratch_dgxl/zl624/workspace/SCALED-Particle/exp/exp2_boundary_continue/ckpt'
   mixed_precision: 'fp16'
   enable_xformers_memory_efficient_attention: false
   gradient_checkpointing: false 
-  max_train_steps: 400000
+  max_train_steps: 500000
   max_grad_norm: 1.0
   # lr
   learning_rate: 1e-5

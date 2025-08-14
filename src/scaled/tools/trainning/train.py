@@ -399,7 +399,7 @@ def main(cfg):
                             save_dir,
                             "denoising_unet",
                             global_step,
-                            total_limit=20,
+                            total_limit=40,
                         )
 
                         ori_net = accelerator.unwrap_model(net)
