@@ -89,10 +89,32 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         return pred
 
 
+def find_latest_ckpt(ckpt_dir):
+    # 过滤出所有 checkpoint 文件
+    ckpt_files = [f for f in os.listdir(ckpt_dir) 
+                  if f.startswith("denoising_unet-") and f.endswith(".pth")]
+    if not ckpt_files:
+        raise FileNotFoundError(f"No checkpoint files found in {ckpt_dir}")
+
+    # 按训练步数排序
+    def get_step(f):
+        return int(f.split("-")[1].split(".")[0])
+
+    ckpt_files.sort(key=get_step)
+    latest_ckpt = ckpt_files[-1]
+    return os.path.join(ckpt_dir, latest_ckpt)
+
+
 def main(cfg, weight_path):
 
     save_dir = os.path.join(cfg.output_dir, cfg.exp_name, "rollout", "npy")
     os.makedirs(save_dir, exist_ok=True)
+
+    if weight_path is None:
+        ckpt_dir = os.path.join(cfg.output_dir, cfg.exp_name, "ckpt")
+        weight_path = find_latest_ckpt(ckpt_dir)
+    
+    print(f"Using model checkpoint: {weight_path}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -113,7 +135,7 @@ def main(cfg, weight_path):
     val_dataset = ParticleFluidDataset(
         data_dir=cfg.dataset.dataset_path,
         skip_timestep=cfg.dataset.skip_timestep,
-        time_steps_list=[i for i in range(200, 250)],
+        time_steps_list=[i for i in range(200, 215)],
     )
 
     val_dataloader = torch.utils.data.DataLoader(
@@ -144,22 +166,24 @@ def main(cfg, weight_path):
     num_inference_steps = cfg.inference.num_inference_steps
     generator = torch.Generator(device=device)
 
-    current_data = next(iter(val_dataloader))[0].to(device)
-
     os.makedirs(save_dir, exist_ok=True)
-    for step in tqdm(range(1, 49)):
+    for step, data in tqdm(enumerate(val_dataloader)):
+        if step == 0:
+            current_data = data[0].to(device)
+        future_data = data[1].to(device)
 
-        # boundary condition
+
         boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
 
-        boundary_mask[:, :, 0, :, :] = True  # front
-        boundary_mask[:, :, 7, :, :] = True  # back
-        boundary_mask[:, :, :, 0, :] = True  # top
-        boundary_mask[:, :, :, 7, :] = True  # bottom
-        boundary_mask[:, :, :, :, 0] = True  # left
-        boundary_mask[:, :, :, :, 7] = True  # right
+        halo = 4
+        boundary_mask[:, :, :halo, :, :] = True  # front
+        boundary_mask[:, :, -halo:, :, :] = True  # back
+        boundary_mask[:, :, :, :halo, :] = True  # top
+        boundary_mask[:, :, :, -halo:, :] = True  # bottom
+        boundary_mask[:, :, :, :, :halo] = True  # left
+        boundary_mask[:, :, :, :, -halo:] = True  # right
 
-        boundary_condition = current_data * boundary_mask
+        boundary_condition = future_data * boundary_mask
 
         current_data = torch.cat([current_data, boundary_condition], dim=1)
 
@@ -180,9 +204,11 @@ def main(cfg, weight_path):
         # 更新current_data
         current_data = pred
 
+        current_data[boundary_mask] = future_data[boundary_mask]
+
         # 保存每一步的result
         pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
-        np.save(os.path.join(save_dir, f"pred_{step:03d}.npy"), pred_numpy)
+        # np.save(os.path.join(save_dir, f"pred_{step+1:03d}.npy"), pred_numpy)
 
 
 if __name__ == "__main__":
