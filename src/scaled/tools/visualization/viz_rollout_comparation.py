@@ -134,13 +134,16 @@ if __name__ == "__main__":
     data_pred_dir = args.pred_input_dir
     data_gt_dir = args.gt_input_dir
 
+    npy_files = sorted(glob.glob(os.path.join(data_pred_dir, "pred_*.npy")))
+    num_files = len(npy_files)
+
     eval_dir = args.output_dir
 
     png_dir = os.path.join(eval_dir, "png")
     os.makedirs(png_dir, exist_ok=True)
 
     for slice in ["xy", "xz", "yz"]:
-        for i in tqdm(range(1, 48)):
+        for i in tqdm(range(1, num_files+1)):
             data_pred = np.load(
                 os.path.join(data_pred_dir, f"pred_{i:03d}.npy")
             )  # (8, D, H, W)
