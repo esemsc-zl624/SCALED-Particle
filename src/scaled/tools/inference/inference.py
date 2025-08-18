@@ -155,7 +155,7 @@ def main(cfg, weight_path):
     val_dataset = ParticleFluidDataset(
         data_dir=cfg.dataset.dataset_path,
         skip_timestep=cfg.dataset.skip_timestep,
-        time_steps_list=[i for i in range(200, 215)],
+        time_steps_list=[i for i in range(200, 249)],
     )
 
     val_dataloader = torch.utils.data.DataLoader(
@@ -214,8 +214,8 @@ def main(cfg, weight_path):
         current_data = pred
 
         # 保存每一步的result
-        # pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
-        # np.save(os.path.join(save_dir, f"pred_{step+1:03d}.npy"), pred_numpy)
+        pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
+        np.save(os.path.join(save_dir, f"pred_{step+1:03d}.npy"), pred_numpy)
 
 
 if __name__ == "__main__":
