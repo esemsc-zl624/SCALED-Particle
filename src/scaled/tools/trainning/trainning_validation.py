@@ -63,9 +63,7 @@ def log_validation(
     current_data = current_data.unsqueeze(0).to("cuda")
     future_data = future_data.unsqueeze(0).to("cuda")
 
-    boundary_condition, boundary_mask = get_boundary_condition(
-        current_data, future_data
-    )
+    boundary_condition, boundary_mask = get_boundary_condition(future_data)
 
     if denoising_unet.in_channels == 25:
         morton_sfc = torch.load("data/morton_sfc.pt")

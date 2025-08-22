@@ -91,8 +91,8 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         return pred
 
 
-def get_boundary_condition(current_data, future_data, halo=4):
-    boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
+def get_boundary_condition(future_data, halo=4):
+    boundary_mask = torch.zeros_like(future_data, dtype=torch.bool)
 
     boundary_mask[:, :, :halo, :, :] = True  # front
     boundary_mask[:, :, -halo:, :, :] = True  # back
@@ -127,9 +127,11 @@ def find_latest_ckpt(ckpt_dir):
 
 def main(cfg, weight_path, inference_type):
     if inference_type == "long_rollout":
-        time_steps_list = [i for i in range(1, 250)]
+        time_steps_list = [i for i in range(1, 249)]
+    elif inference_type == "debug_rollout":
+        time_steps_list = [i for i in range(200, 209)]
     else:
-        time_steps_list = [i for i in range(200, 250)]
+        time_steps_list = [i for i in range(200, 249)]
 
     save_dir = os.path.join(cfg.output_dir, cfg.exp_name, inference_type, "npy")
     os.makedirs(save_dir, exist_ok=True)
@@ -191,18 +193,40 @@ def main(cfg, weight_path, inference_type):
     generator = torch.Generator(device=device)
 
     os.makedirs(save_dir, exist_ok=True)
+    pred = None
     for step, data in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
-        if inference_type == "onestep" or step == 0:
+        # get current data:
+        # 1. for onestep, use the current data
+        # 2. for rollout, use the previous output as current data
+        if inference_type == "onestep" or pred is None:
             current_data = data[0].to(device)
+        else:
+            current_data = pred
+
+        # get boundary condition
         future_data = data[1].to(device)
+        boundary_condition, boundary_mask = get_boundary_condition(future_data)
 
-        boundary_condition, boundary_mask = get_boundary_condition(
-            current_data, future_data
-        )
-        current_data = torch.cat([current_data, boundary_condition], dim=1)
+        # get latent input
+        latent_input = torch.cat([current_data, boundary_condition], dim=1)
 
+        # get sfc condition
+        if net.denoising_unet.config.in_channels == 25:
+            morton_sfc = torch.load("data/morton_sfc.pt")
+            position_mask = (current_data[:, 7:8] + 1) / 2
+            sfc_condition = (
+                morton_sfc.to(device=position_mask.device, dtype=position_mask.dtype)
+                .unsqueeze(0)
+                .unsqueeze(0)
+                .expand_as(position_mask)
+            )
+            sfc_condition = sfc_condition * position_mask
+            sfc_condition = sfc_condition * 2 - 1
+            latent_input = torch.cat([latent_input, sfc_condition], dim=1)
+
+        # inference
         pred = pipe(
-            current_data,
+            latent_input,
             num_inference_steps=num_inference_steps,
             guidance_scale=0,
             depth=cfg.dataset.depth,
@@ -212,12 +236,11 @@ def main(cfg, weight_path, inference_type):
             return_dict=False,
         )
         pred = apply_mask_on_velocity(
-            pred, current_data, dilation_radius=cfg.inference.dilation_radius
+            pred, latent_input, dilation_radius=cfg.inference.dilation_radius
         )
-        pred = torch.where(boundary_mask, future_data, pred)
-        current_data = pred
+        pred = torch.where(boundary_mask, future_data, pred)  # [B, 8, D, H, W]
 
-        # 保存每一步的result
+        # save result
         pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
         np.save(os.path.join(save_dir, f"pred_{step+1:03d}.npy"), pred_numpy)
 
@@ -230,7 +253,7 @@ if __name__ == "__main__":
         "--inference_type",
         type=str,
         default="rollout",
-        choices=["rollout", "onestep", "long_rollout"],
+        choices=["rollout", "onestep", "long_rollout", "debug_rollout"],
     )
     args = parser.parse_args()
 

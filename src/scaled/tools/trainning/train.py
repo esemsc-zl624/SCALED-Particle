@@ -304,9 +304,7 @@ def main(cfg):
                 noisy_future_data = train_noise_scheduler.add_noise(
                     future_data, noise, timesteps
                 )  # noised future_data: [B, 8, D, H, W]
-                boundary_condition, boundary_mask = get_boundary_condition(
-                    current_data, future_data
-                )
+                boundary_condition, _ = get_boundary_condition(future_data)
 
                 if getattr(cfg.model, "use_sfc", False):
                     position_mask = (current_data[:, 7:8] + 1) / 2
