@@ -48,6 +48,66 @@ sys.path.append(
 warnings.filterwarnings("ignore")
 
 
+def morton_sfc_3d(D, H, W):
+    """
+    生成任意长方体 (D,H,W) 的 Morton / Z-order SFC 通道
+    输出 shape: (D,H,W)，归一化到 [0,1]
+    """
+    # 最大维度决定 bit 数
+    n = max(D, H, W).bit_length()
+
+    def part1by2(n):
+        n &= 0x1FFFFF
+        n = (n | (n << 32)) & 0x1F00000000FFFF
+        n = (n | (n << 16)) & 0x1F0000FF0000FF
+        n = (n | (n << 8)) & 0x100F00F00F00F00F
+        n = (n | (n << 4)) & 0x10C30C30C30C30C3
+        n = (n | (n << 2)) & 0x1249249249249249
+        return n
+
+    vol = np.zeros((D, H, W), dtype=np.float64)
+
+    for z in range(D):
+        for y in range(H):
+            for x in range(W):
+                # 映射到 [0, 2^n-1]
+                xm = int(x * (2**n - 1) / (W - 1)) if W > 1 else 0
+                ym = int(y * (2**n - 1) / (H - 1)) if H > 1 else 0
+                zm = int(z * (2**n - 1) / (D - 1)) if D > 1 else 0
+
+                idx = part1by2(xm) | (part1by2(ym) << 1) | (part1by2(zm) << 2)
+                vol[z, y, x] = idx
+
+    return vol
+
+
+def mask_and_normalize_sfc(sfc: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """
+    Args:
+        sfc: [D,H,W] 的 Morton SFC
+        mask: [B,1,D,H,W]，0表示空cell，1表示有粒子
+
+    Returns:
+        normalized_sfc: [B,1,D,H,W]，空cell=-1，非空cell归一化到(-1,1)
+    """
+    B, _, D, H, W = mask.shape
+    sfc_expanded = sfc.unsqueeze(0).unsqueeze(0).expand_as(mask)
+    masked_sfc = sfc_expanded * mask
+
+    normalized_sfc = torch.full_like(masked_sfc, -1.0)
+
+    for b in range(B):
+        valid = mask[b, 0].bool()
+        if valid.sum() > 0:
+            sfc_min = masked_sfc[b, 0][valid].min()
+            sfc_max = masked_sfc[b, 0][valid].max()
+            normalized_sfc[b, 0][valid] = (
+                2 * (masked_sfc[b, 0][valid] - sfc_min) / (sfc_max - sfc_min) - 1
+            )
+
+    return normalized_sfc
+
+
 def main(cfg):
 
     # Initialize the accelerator. We will let the accelerator handle everything for us.
@@ -298,9 +358,30 @@ def main(cfg):
                 boundary_condition, boundary_mask = get_boundary_condition(
                     current_data, future_data
                 )
-                input_latent = torch.cat(
-                    [current_data, boundary_condition, noisy_future_data], dim=1
-                )  # [B, 8+8+8, D, H, W]
+                if cfg.mdoel.use_sfc:
+                    morton_sfc = morton_sfc_3d(
+                        cfg.dataset.depth,
+                        cfg.dataset.height,
+                        cfg.dataset.width,
+                    )
+                    morton_sfc = torch.from_numpy(morton_sfc).to(current_data.device)
+                    position_mask = (current_data[:, 7:8] + 1) / 2
+                    nomalized_morton_sfc = mask_and_normalize_sfc(
+                        morton_sfc, position_mask
+                    )
+                    input_latent = torch.cat(
+                        [
+                            current_data,
+                            boundary_condition,
+                            nomalized_morton_sfc,
+                            noisy_future_data,
+                        ],
+                        dim=1,
+                    )  # [B, 8+8+1+8, D, H, W]
+                else:
+                    input_latent = torch.cat(
+                        [current_data, boundary_condition, noisy_future_data], dim=1
+                    )  # [B, 8+8+8, D, H, W]
 
                 if train_noise_scheduler.prediction_type == "epsilon":
                     target = noise
