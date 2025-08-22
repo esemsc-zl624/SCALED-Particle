@@ -319,6 +319,7 @@ def main(cfg):
                         .expand_as(position_mask)
                     )
                     sfc_condition = sfc_condition * position_mask
+                    sfc_condition = sfc_condition * 2 - 1
                     input_latent = torch.cat(
                         [
                             current_data,
