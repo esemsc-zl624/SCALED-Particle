@@ -2,11 +2,11 @@ solver:
   gradient_accumulation_steps: 1
   per_device_batch_size: 1
   logging_steps: 100
-  resume_from_checkpoint: '/scratch_dgxl/zl624/workspace/SCALED-Particle/exp/exp2_boundary_continue/ckpt'
+  resume_from_checkpoint: 'latest' # None
   mixed_precision: 'fp16'
   enable_xformers_memory_efficient_attention: false
   gradient_checkpointing: false 
-  max_train_steps: 500000
+  max_train_steps: 400000
   max_grad_norm: 1.0
   # lr
   learning_rate: 1e-5
@@ -37,11 +37,12 @@ model:
   block_out_channels: 
     - 64
     - 128
-    - 192
     - 256
+    - 512
+  use_sfc: true
 
 val:
-  validation_steps: 10000
+  validation_steps: 20000
   validation_steps_tuple: []
 
 dataset:
@@ -61,7 +62,7 @@ noise_scheduler_kwargs:
   prediction_type: "v_prediction"
 
 inference:
-  dilation_radius: 3
+  dilation_radius: 5
   num_inference_steps: 100
   
 
@@ -72,5 +73,5 @@ snr_gamma: 0.
 enable_zero_snr: True 
 
 seed: 42
-exp_name: 'exp2_boundary_continue' 
+exp_name: 'exp7_attn_sfc'    
 output_dir: 'exp'

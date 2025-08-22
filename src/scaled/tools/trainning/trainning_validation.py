@@ -10,7 +10,7 @@ from scaled.pipelines.pipeline_ddim_scaled_particle_fluid import (
 )
 import torch
 
-from scaled.tools.inference.inference import apply_mask_on_velocity
+from scaled.tools.inference.inference import apply_mask_on_velocity, get_boundary_condition
 
 
 def compute_snr(noise_scheduler, timesteps):
@@ -60,17 +60,9 @@ def log_validation(
     current_data = current_data.unsqueeze(0).to("cuda")
     future_data = future_data.unsqueeze(0).to("cuda")
 
-    # boundary condition
-    boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
-
-    boundary_mask[:, :, 0, :, :] = True  # front
-    boundary_mask[:, :, 7, :, :] = True  # back
-    boundary_mask[:, :, :, 0, :] = True  # top
-    boundary_mask[:, :, :, 7, :] = True  # bottom
-    boundary_mask[:, :, :, :, 0] = True  # left
-    boundary_mask[:, :, :, :, 7] = True  # right
-
-    boundary_condition = future_data * boundary_mask
+    boundary_condition, boundary_mask = get_boundary_condition(
+        current_data, future_data
+    )
 
     current_data = torch.cat([current_data, boundary_condition], dim=1)
 
@@ -92,6 +84,7 @@ def log_validation(
     )
 
     pred = apply_mask_on_velocity(pred, current_data, dilation_radius=dilation_radius)
+    pred = torch.where(boundary_mask, future_data, pred)
 
     results = {
         "sample_index": sample_idx,

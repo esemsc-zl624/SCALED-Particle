@@ -48,7 +48,9 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         num_particle = int(torch.sum(current_mask).item())
 
         # --- Step 2: 计算膨胀 mask ---
-        dilated_mask = dilate_mask_square_3d(current_mask.bool(), radius=1)
+        dilated_mask = dilate_mask_square_3d(
+            current_mask.bool(), radius=dilation_radius
+        )
 
         # --- Step 3: 获取模型预测的 mask，并仅在膨胀区域内做 Top-K ---
         pred_mask = pred[b, 7]
@@ -89,10 +91,54 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
         return pred
 
 
-def main(cfg, weight_path):
+def get_boundary_condition(current_data, future_data, halo=4):
+    boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
 
-    save_dir = os.path.join(cfg.output_dir, cfg.exp_name, "rollout", "npy")
+    boundary_mask[:, :, :halo, :, :] = True  # front
+    boundary_mask[:, :, -halo:, :, :] = True  # back
+    boundary_mask[:, :, :, :halo, :] = True  # top
+    boundary_mask[:, :, :, -halo:, :] = True  # bottom
+    boundary_mask[:, :, :, :, :halo] = True  # left
+    boundary_mask[:, :, :, :, -halo:] = True  # right
+
+    boundary_condition = future_data * boundary_mask
+
+    return boundary_condition, boundary_mask
+
+
+def find_latest_ckpt(ckpt_dir):
+    # 过滤出所有 checkpoint 文件
+    ckpt_files = [
+        f
+        for f in os.listdir(ckpt_dir)
+        if f.startswith("denoising_unet-") and f.endswith(".pth")
+    ]
+    if not ckpt_files:
+        raise FileNotFoundError(f"No checkpoint files found in {ckpt_dir}")
+
+    # 按训练步数排序
+    def get_step(f):
+        return int(f.split("-")[1].split(".")[0])
+
+    ckpt_files.sort(key=get_step)
+    latest_ckpt = ckpt_files[-1]
+    return os.path.join(ckpt_dir, latest_ckpt)
+
+
+def main(cfg, weight_path, inference_type):
+    if inference_type == "long_rollout":
+        time_steps_list = [i for i in range(1, 250)]
+    else:
+        time_steps_list = [i for i in range(200, 250)]
+
+    save_dir = os.path.join(cfg.output_dir, cfg.exp_name, inference_type, "npy")
     os.makedirs(save_dir, exist_ok=True)
+
+    if weight_path is None:
+        ckpt_dir = os.path.join(cfg.output_dir, cfg.exp_name, "ckpt")
+        weight_path = find_latest_ckpt(ckpt_dir)
+
+    print(f"Using model checkpoint: {weight_path}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -113,7 +159,7 @@ def main(cfg, weight_path):
     val_dataset = ParticleFluidDataset(
         data_dir=cfg.dataset.dataset_path,
         skip_timestep=cfg.dataset.skip_timestep,
-        time_steps_list=[i for i in range(200, 250)],
+        time_steps_list=time_steps_list,
     )
 
     val_dataloader = torch.utils.data.DataLoader(
@@ -144,23 +190,15 @@ def main(cfg, weight_path):
     num_inference_steps = cfg.inference.num_inference_steps
     generator = torch.Generator(device=device)
 
-    current_data = next(iter(val_dataloader))[0].to(device)
-
     os.makedirs(save_dir, exist_ok=True)
-    for step in tqdm(range(1, 49)):
+    for step, data in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
+        if inference_type == "onestep" or step == 0:
+            current_data = data[0].to(device)
+        future_data = data[1].to(device)
 
-        # boundary condition
-        boundary_mask = torch.zeros_like(current_data, dtype=torch.bool)
-
-        boundary_mask[:, :, 0, :, :] = True  # front
-        boundary_mask[:, :, 7, :, :] = True  # back
-        boundary_mask[:, :, :, 0, :] = True  # top
-        boundary_mask[:, :, :, 7, :] = True  # bottom
-        boundary_mask[:, :, :, :, 0] = True  # left
-        boundary_mask[:, :, :, :, 7] = True  # right
-
-        boundary_condition = current_data * boundary_mask
-
+        boundary_condition, boundary_mask = get_boundary_condition(
+            current_data, future_data
+        )
         current_data = torch.cat([current_data, boundary_condition], dim=1)
 
         pred = pipe(
@@ -176,20 +214,25 @@ def main(cfg, weight_path):
         pred = apply_mask_on_velocity(
             pred, current_data, dilation_radius=cfg.inference.dilation_radius
         )
-
-        # 更新current_data
+        pred = torch.where(boundary_mask, future_data, pred)
         current_data = pred
 
         # 保存每一步的result
         pred_numpy = pred.cpu().numpy()[0, :, :, :, :]
-        np.save(os.path.join(save_dir, f"pred_{step:03d}.npy"), pred_numpy)
+        np.save(os.path.join(save_dir, f"pred_{step+1:03d}.npy"), pred_numpy)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str)
     parser.add_argument("--weight_path", type=str)
+    parser.add_argument(
+        "--inference_type",
+        type=str,
+        default="rollout",
+        choices=["rollout", "onestep", "long_rollout"],
+    )
     args = parser.parse_args()
 
     config = OmegaConf.load(args.config)
-    main(config, args.weight_path)
+    main(config, args.weight_path, args.inference_type)
