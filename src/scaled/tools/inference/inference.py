@@ -125,9 +125,13 @@ def find_latest_ckpt(ckpt_dir):
     return os.path.join(ckpt_dir, latest_ckpt)
 
 
-def main(cfg, weight_path):
+def main(cfg, weight_path, inference_type):
+    if inference_type == "long_rollout":
+        time_steps_list = [i for i in range(1, 250)]
+    else:
+        time_steps_list = [i for i in range(200, 250)]
 
-    save_dir = os.path.join(cfg.output_dir, cfg.exp_name, "rollout", "npy")
+    save_dir = os.path.join(cfg.output_dir, cfg.exp_name, inference_type, "npy")
     os.makedirs(save_dir, exist_ok=True)
 
     if weight_path is None:
@@ -155,7 +159,7 @@ def main(cfg, weight_path):
     val_dataset = ParticleFluidDataset(
         data_dir=cfg.dataset.dataset_path,
         skip_timestep=cfg.dataset.skip_timestep,
-        time_steps_list=[i for i in range(200, 249)],
+        time_steps_list=time_steps_list,
     )
 
     val_dataloader = torch.utils.data.DataLoader(
@@ -188,7 +192,7 @@ def main(cfg, weight_path):
 
     os.makedirs(save_dir, exist_ok=True)
     for step, data in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
-        if step == 0:
+        if inference_type == "onestep" or step == 0:
             current_data = data[0].to(device)
         future_data = data[1].to(device)
 
@@ -222,7 +226,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str)
     parser.add_argument("--weight_path", type=str)
+    parser.add_argument(
+        "--inference_type",
+        type=str,
+        default="rollout",
+        choices=["rollout", "onestep", "long_rollout"],
+    )
     args = parser.parse_args()
 
     config = OmegaConf.load(args.config)
-    main(config, args.weight_path)
+    main(config, args.weight_path, args.inference_type)
