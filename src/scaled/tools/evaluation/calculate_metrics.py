@@ -40,22 +40,24 @@ def calculate_metrics(gt_file, pred_file):
     gt = np.load(gt_file)
     pred = np.load(pred_file)
 
-    gt_mask = ((gt[-1] + 1) / 2).astype(np.uint8)
-    pred_mask = ((pred[-1] + 1) / 2).astype(np.uint8)
+    gt_pos_mask = ((gt[-1] + 1) / 2).astype(np.uint8)
+    pred_pos_mask = ((pred[-1] + 1) / 2).astype(np.uint8)
 
-    gt_flat = gt_mask.flatten()
-    pred_flat = pred_mask.flatten()
+    gt_vel = gt[3:6]
+    pred_vel = pred[3:6]
 
-    mse = np.mean((pred_mask - gt_mask) ** 2)
+    gt_flat = gt_pos_mask.flatten()
+    pred_flat = pred_pos_mask.flatten()
+
+    # mse_pos = np.mean((pred_pos_mask - gt_pos_mask) ** 2)
+    mse_vel = np.mean((pred_vel - gt_vel) ** 2)
+
     accuracy = accuracy_score(gt_flat, pred_flat)
     precision = precision_score(gt_flat, pred_flat, zero_division=0)
     recall = recall_score(gt_flat, pred_flat, zero_division=0)
     f1 = f1_score(gt_flat, pred_flat, zero_division=0)
-    intersection = np.logical_and(pred_mask, gt_mask).sum()
-    union = np.logical_or(pred_mask, gt_mask).sum()
-    iou = intersection / union if union > 0 else 0.0
 
-    return mse, accuracy, precision, recall, f1, iou
+    return mse_vel, accuracy, precision, recall, f1
 
 def calculate_metrics_dir(gt_dir, pred_dir):
     metrics_lists = {
@@ -64,7 +66,6 @@ def calculate_metrics_dir(gt_dir, pred_dir):
         "precision": [],
         "recall": [],
         "f1": [],
-        "iou": []
     }
 
     num_files = len(os.listdir(pred_dir))
@@ -72,13 +73,12 @@ def calculate_metrics_dir(gt_dir, pred_dir):
         gt_file = os.path.join(gt_dir, f"gt_{step:03d}.npy")
         pred_file = os.path.join(pred_dir, f"pred_{step:03d}.npy")
 
-        mse, acc, prec, rec, f1_val, iou = calculate_metrics(gt_file, pred_file)
+        mse, acc, prec, rec, f1_val = calculate_metrics(gt_file, pred_file)
         metrics_lists["mse"].append(mse)
         metrics_lists["accuracy"].append(acc)
         metrics_lists["precision"].append(prec)
         metrics_lists["recall"].append(rec)
         metrics_lists["f1"].append(f1_val)
-        metrics_lists["iou"].append(iou)
 
     return metrics_lists
 
@@ -86,26 +86,23 @@ def plot_metrics_subplots(csv_file):
     """
     每个指标单独一个 subplot，显示原始值和累积平均
     布局：2行3列
-    第一行：recall, precision, f1
-    第二行：accuracy, mse, iou
+    第一行：recall, precision, f1, mse
     """
     df = pd.read_csv(csv_file)
-    metrics_order = ["recall", "precision", "f1", "accuracy", "mse", "iou"]
+    metrics_order = ["recall", "precision", "f1", "mse"]
 
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10), sharex=True)
+    fig, axes = plt.subplots(1, 4, figsize=(24, 6), sharex=True)
     axes = axes.flatten()
 
     for i, metric in enumerate(metrics_order):
         ax = axes[i]
         ax.plot(df[metric], label=f"{metric} per step")
         ax.plot(df[f"{metric}_cumulative_avg"], label=f"Cumulative Avg {metric}")
+        ax.set_xlabel("Step")
         ax.set_ylabel(metric)
         ax.grid(True)
         ax.legend()
 
-    axes[3].set_xlabel("Step")
-    axes[4].set_xlabel("Step")
-    axes[5].set_xlabel("Step")
 
     fig.suptitle("Metrics per Step and Cumulative Average", fontsize=16)
     fig.tight_layout(rect=[0, 0, 1, 0.97])
