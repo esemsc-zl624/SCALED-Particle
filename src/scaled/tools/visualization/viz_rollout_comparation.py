@@ -79,7 +79,9 @@ def visualize_onestep_comparasion(data_pred, data_gt, png_path, step=None, slice
         ax_title.axis("off")
 
     if step is not None:
-        fig.suptitle(f"Plane: {slice}    Step: {step}", fontsize=16)
+        fig.suptitle(f"Plane: {slice}    Step: {step}", fontsize=12)
+
+    fig.text(0.5, 0.1, "Prediction | Ground Truth", ha="center", va="center", fontsize=12)
 
     # Adjust layout to avoid overlap
     plt.savefig(png_path, dpi=300)
