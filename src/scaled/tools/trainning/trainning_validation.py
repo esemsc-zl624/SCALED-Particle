@@ -10,7 +10,10 @@ from scaled.pipelines.pipeline_ddim_scaled_particle_fluid import (
 )
 import torch
 
-from scaled.tools.inference.inference import apply_mask_on_velocity, get_boundary_condition
+from scaled.tools.inference.inference import (
+    apply_mask_on_velocity,
+    get_boundary_condition,
+)
 
 
 def compute_snr(noise_scheduler, timesteps):
@@ -60,11 +63,24 @@ def log_validation(
     current_data = current_data.unsqueeze(0).to("cuda")
     future_data = future_data.unsqueeze(0).to("cuda")
 
-    boundary_condition, boundary_mask = get_boundary_condition(
-        current_data, future_data
-    )
+    boundary_condition, boundary_mask = get_boundary_condition(future_data)
 
-    current_data = torch.cat([current_data, boundary_condition], dim=1)
+    if denoising_unet.in_channels == 25:
+        morton_sfc = torch.load("data/morton_sfc.pt")
+        position_mask = (current_data[:, 7:8] + 1) / 2
+        sfc_condition = (
+            morton_sfc.to(device=position_mask.device, dtype=position_mask.dtype)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand_as(position_mask)
+        )
+        sfc_condition = sfc_condition * position_mask
+        sfc_condition = sfc_condition * 2 - 1
+        latent_input = torch.cat(
+            [current_data, boundary_condition, sfc_condition], dim=1
+        )
+    else:
+        latent_input = torch.cat([current_data, boundary_condition], dim=1)
 
     pipe = SCALEDParticleFluidPipeline(
         denoising_unet,
@@ -73,7 +89,7 @@ def log_validation(
     pipe = pipe.to(accelerator.device)
 
     pred = pipe(
-        current_data,
+        latent_input,
         num_inference_steps=num_inference_steps,
         guidance_scale=0,
         depth=depth,
@@ -83,14 +99,14 @@ def log_validation(
         return_dict=False,
     )
 
-    pred = apply_mask_on_velocity(pred, current_data, dilation_radius=dilation_radius)
+    pred = apply_mask_on_velocity(pred, latent_input, dilation_radius=dilation_radius)
     pred = torch.where(boundary_mask, future_data, pred)
 
     results = {
         "sample_index": sample_idx,
-        "pred_future_velocity": pred.detach().cpu().numpy()[0],
-        "gt_future_velocity": future_data.detach().cpu().numpy()[0],
-        "current_velocity": current_data.detach().cpu().numpy()[0],
+        "pred_future_velocity": pred.detach().cpu().numpy()[0],  # [B, 8, D, H, W]
+        "gt_future_velocity": future_data.detach().cpu().numpy()[0],  # [B, 8, D, H, W]
+        "current_velocity": current_data.detach().cpu().numpy()[0],  # [B, 8, D, H, W]
     }
 
     del pipe
