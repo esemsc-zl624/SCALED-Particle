@@ -64,7 +64,15 @@ def visualize_onestep_comparasion(data_pred, data_gt, png_path, step=None, slice
     outer = fig.add_gridspec(1, 7, wspace=0.5)
 
     for i in range(7):
+        ax_title = fig.add_subplot(outer[i])
+        ax_title.set_title(channel_names[i], fontsize=10, pad=10, y=title_y)
+        ax_title.axis("off")
+
         inner = outer[i].subgridspec(1, 2, wspace=0.1)
+
+        # Skip C
+        if i == 6:
+            i += 1
 
         ax_pred = fig.add_subplot(inner[0])
         ax_pred.imshow(pred_slice[i], vmin=-1, vmax=1)
@@ -74,14 +82,12 @@ def visualize_onestep_comparasion(data_pred, data_gt, png_path, step=None, slice
         ax_gt.imshow(gt_slice[i], vmin=-1, vmax=1)
         ax_gt.axis("off")
 
-        ax_title = fig.add_subplot(outer[i])
-        ax_title.set_title(channel_names[i], fontsize=10, pad=10, y=title_y)
-        ax_title.axis("off")
-
     if step is not None:
         fig.suptitle(f"Plane: {slice}    Step: {step}", fontsize=12)
 
-    fig.text(0.5, 0.1, "Prediction | Ground Truth", ha="center", va="center", fontsize=12)
+    fig.text(
+        0.5, 0.1, "Prediction | Ground Truth", ha="center", va="center", fontsize=12
+    )
 
     # Adjust layout to avoid overlap
     plt.savefig(png_path, dpi=300)
