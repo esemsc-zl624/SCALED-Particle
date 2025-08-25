@@ -10,7 +10,8 @@ wheels/
 .venv
 
 
-data
+data/*
+!data/morton_sfc.pt
 wandb
 ckpt
 validation
