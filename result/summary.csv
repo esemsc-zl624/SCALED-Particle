@@ -1,0 +1,9 @@
+mode,file_path,recall,precision,f1_score,mse
+onestep,exp/01_conv/onestep/metrics.csv,3.111e-01,3.125e-01,3.118e-01,2.428e-03
+onestep,exp/02_attn/onestep/metrics.csv,3.119e-01,3.141e-01,3.130e-01,1.730e-03
+onestep,exp/03_conv_sfc/onestep/metrics.csv,3.070e-01,3.164e-01,3.116e-01,1.454e-03
+onestep,exp/04_attn_sfc/onestep/metrics.csv,2.951e-01,3.400e-01,3.159e-01,1.645e-03
+rollout,exp/01_conv/rollout/metrics.csv,3.018e-01,3.171e-01,3.092e-01,1.156e-02
+rollout,exp/02_attn/rollout/metrics.csv,2.983e-01,3.267e-01,3.118e-01,1.284e-02
+rollout,exp/03_conv_sfc/rollout/metrics.csv,2.892e-01,3.359e-01,3.107e-01,1.124e-02
+rollout,exp/04_attn_sfc/rollout/metrics.csv,2.731e-01,3.838e-01,3.190e-01,1.162e-02
