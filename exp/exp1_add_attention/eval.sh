@@ -1,7 +1,0 @@
-EXP_DIR=exp/exp1_add_attention
-
-source .venv/bin/activate
-
-# python tools/inference/inference.py --config $EXP_DIR/config/exp1.yaml --weight_path $EXP_DIR/ckpt/denoising_unet-100000.pth
-# python tools/visualization/viz_rollout.py --input_dir $EXP_DIR/inference/npy --output_dir $EXP_DIR/inference/rollout
-python tools/visualization/viz_rollout.py --input_dir data/evaluation_npy_step200-250 --output_dir $EXP_DIR/inference/rollout/gt
