@@ -75,12 +75,34 @@ def visualize_onestep_comparasion(data_pred, data_gt, png_path, step=None, slice
             i += 1
 
         ax_pred = fig.add_subplot(inner[0])
-        ax_pred.imshow(pred_slice[i], vmin=-1, vmax=1)
-        ax_pred.axis("off")
-
         ax_gt = fig.add_subplot(inner[1])
-        ax_gt.imshow(gt_slice[i], vmin=-1, vmax=1)
-        ax_gt.axis("off")
+
+        # set the background of particle velocity channels to be transparent
+        if i < 3:
+            cmap = plt.get_cmap("viridis")
+
+            # pred
+            normed_pred = (pred_slice[i] - (-1)) / (1 - (-1))  # normalize to 0~1
+            rgba_pred = cmap(normed_pred)  # convert to RGBA
+            mask_pred = pred_slice[7] == -1
+            rgba_pred[mask_pred, 3] = 0.5  # background transparent
+            ax_pred.imshow(rgba_pred)
+            ax_pred.axis("off")
+
+            # gt
+            normed_gt = (gt_slice[i] - (-1)) / (1 - (-1))
+            rgba_gt = cmap(normed_gt)
+            mask_gt = gt_slice[7] == -1
+            rgba_gt[mask_gt, 3] = 0.5
+            ax_gt.imshow(rgba_gt)
+            ax_gt.axis("off")
+
+        else:
+            # other channels
+            ax_pred.imshow(pred_slice[i], vmin=-1, vmax=1)
+            ax_pred.axis("off")
+            ax_gt.imshow(gt_slice[i], vmin=-1, vmax=1)
+            ax_gt.axis("off")
 
     if step is not None:
         fig.suptitle(f"Plane: {slice}    Step: {step}", fontsize=12)
