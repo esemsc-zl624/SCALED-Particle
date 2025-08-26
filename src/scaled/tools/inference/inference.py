@@ -67,7 +67,7 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
 
         new_mask = torch.zeros_like(pred_mask)
         new_mask.view(-1)[topk_indices] = 1
-        new_mask = (new_mask * 2) - 1  # 映射为 [7, 1]
+        new_mask = (new_mask * 2) - 1  # 映射为 [-1, 1]
         pred[b, 7] = new_mask
 
         # --- Step 4: 根据 mask 修改速度通道 ---

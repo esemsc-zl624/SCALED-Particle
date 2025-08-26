@@ -17,7 +17,7 @@ ckpt
 validation
 logs
 eval
-rollout
+rollout/*
+onestep/*
 *.npy
-*.gif
 *.png
