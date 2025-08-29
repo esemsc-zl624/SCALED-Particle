@@ -19,6 +19,7 @@
 # source /scratch_dgxl/zl624/workspace/SCALED-Particle/.venv/bin/activate
 
 # conda
-source /scratch_dgxl/zl624/miniconda3/etc/profile.d/conda.sh && conda activate scaled
+source /scratch_dgxl/zl624/miniconda3/etc/profile.d/conda.sh
+conda activate scaled
 
 accelerate launch src/scaled/tools/trainning/train.py --config exp/exp5_conv/config/exp.yaml
