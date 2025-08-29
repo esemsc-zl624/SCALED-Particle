@@ -117,7 +117,7 @@ if __name__ == "__main__":
         "--gt_dir",
         type=str,
         help="Directory containing groundtruth .npy files",
-        default="/scratch_dgxl/zl624/workspace/SCALED-Particle/data/evaluation_npy_step200-250",
+        default="data/evaluation_npy_step200-250",
     )
     parser.add_argument(
         "--pred_dir",

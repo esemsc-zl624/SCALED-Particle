@@ -2,8 +2,9 @@
 # source .venv/bin/activate
 
 # conda
-# source /scratch_dgxl/zl624/miniconda3/etc/profile.d/conda.sh && conda activate scaled
-source /root/miniconda3/etc/profile.d/conda.sh && conda activate scaled
+# source /scratch_dgxl/zl624/miniconda3/etc/profile.d/conda.sh
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate scaled
 
 EXP_DIR=("exp/01_conv" "exp/02_attn" "exp/03_conv_sfc" "exp/04_attn_sfc")
 
