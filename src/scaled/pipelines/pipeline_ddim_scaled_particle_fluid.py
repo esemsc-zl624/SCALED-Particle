@@ -163,7 +163,6 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
 
         num_channels_latents = self.denoising_unet.config.out_channels
 
-        # latents is noise, 为什么要叫做latent？？
         latents = self.prepare_latents(
             batch_size,
             num_channels_latents,
@@ -178,9 +177,6 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
         # Prepare extra step kwargs.
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
-        # vis_steps = []
-        # step_indices = []
-
         # denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -188,19 +184,6 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
                 # scale the latents (noisy velocity)
                 sheduled_latent = self.scheduler.scale_model_input(latents, t)
                 latent_model_input = torch.cat([current_data, sheduled_latent], dim=1)
-
-                # # 3.1 expand the latents if we are doing classifier free guidance
-                # if do_classifier_free_guidance:
-                #     negtive_latent_model_input = torch.cat(
-                #         [
-                #             negtive_previous_flow_value,
-                #             sheduled_latent,
-                #         ],
-                #         dim=1,
-                #     )  # 1x24x32x32x32
-                #     latent_model_input = torch.cat(
-                #         [negtive_latent_model_input, latent_model_input], dim=0
-                #     )  # 2x9x32x32x32
 
                 # noise_pred is v_prediction
                 noise_pred = self.denoising_unet(
@@ -229,28 +212,5 @@ class SCALEDParticleFluidPipeline(DiffusionPipeline):
                     if callback is not None and i % callback_steps == 0:
                         step_idx = i // getattr(self.scheduler, "order", 1)
                         callback(step_idx, t, latents)
-
-                # Denoising Progress Visualization
-                # ✅ 收集每5步的可视化切片
-                # if i % 5 == 0:
-                #     with torch.no_grad():
-                #         vis_tensor = latents[0].detach().cpu()  # (C, D, H, W)
-                #         vis_steps.append(vis_tensor[0][depth // 2])
-                #         step_indices.append(i)
-
-            # # ✅ 推理结束后绘图
-            # fig, axs = plt.subplots(1, len(vis_steps), figsize=(3 * len(vis_steps), 3))
-            # if len(vis_steps) == 1:
-            #     axs = [axs]
-            # for ax, img, idx in zip(axs, vis_steps, step_indices):
-            #     ax.imshow(img, cmap="viridis")
-            #     ax.set_title(f"Step {idx}")
-            #     ax.axis("off")
-
-            # from datetime import datetime
-
-            # plt.tight_layout()
-            # plt.savefig(f"infer_step/{datetime.now()}_denoising_progress.png")
-            # plt.close()
 
         return latents
