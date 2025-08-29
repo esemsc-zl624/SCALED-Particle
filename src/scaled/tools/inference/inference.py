@@ -15,66 +15,67 @@ import argparse
 
 def dilate_mask_square_3d(mask: torch.Tensor, radius: int) -> torch.Tensor:
     """
-    3D方形膨胀：对bool类型mask进行立方体卷积，半径为radius。
+    3D Square Dilate:
+    Dilate a bool mask with a cubic kernel of radius.
     """
     mask_f = mask.float().unsqueeze(0).unsqueeze(0)  # (1, 1, D, H, W)
     kernel = torch.ones(
         (1, 1, 2 * radius + 1, 2 * radius + 1, 2 * radius + 1), device=mask.device
     )
     out = torch.nn.functional.conv3d(mask_f, kernel, padding=radius)
-    return (out > 0).squeeze(0).squeeze(0).bool()  # 返回布尔类型 (D, H, W)
+    return (out > 0).squeeze(0).squeeze(0).bool()  # return bool type (D, H, W)
 
 
 def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
     """
-    对预测结果进行 Top-K 粒子筛选，并根据 mask 修改速度通道。
-    仅在 current_data 的 mask 膨胀区域内执行 Top-K。
+    Apply Top-K particle selection on the prediction results, and modify the velocity channel based on the mask.
+    Only perform Top-K within the dilated region of current_data.
 
-    参数:
-        pred: 模型预测结果，形状为 (b, 7, D, H, W)
-        current_data: 当前输入数据，形状同 pred
-        dilation_radius: 膨胀半径（默认5）
+    Args:
+        pred: model prediction results, shape (b, 7, D, H, W)
+        current_data: current input data, shape same as pred
+        dilation_radius: dilation radius (default 5)
 
-    返回:
-        pred: 经过掩膜和速度处理后的预测结果
+    Returns:
+        pred: prediction results after mask and velocity processing
     """
 
     batch_size = pred.shape[0]
 
     for b in range(batch_size):
-        # --- Step 1: 获取当前帧的 ground truth mask，并计算粒子个数 ---
-        current_mask = current_data[b, 7]  # (D, H, W)，值为 -1 或 1
-        current_mask = (current_mask + 1) / 2  # 映射为 [0, 1]
+        # --- Step 1: get the ground truth mask of current frame, and calculate the number of particles ---
+        current_mask = current_data[b, 7]  # (D, H, W), value is -1 or 1
+        current_mask = (current_mask + 1) / 2  # map to [0, 1]
         num_particle = int(torch.sum(current_mask).item())
 
-        # --- Step 2: 计算膨胀 mask ---
+        # --- Step 2: calculate dilated mask ---
         dilated_mask = dilate_mask_square_3d(
             current_mask.bool(), radius=dilation_radius
         )
 
-        # --- Step 3: 获取模型预测的 mask，并仅在膨胀区域内做 Top-K ---
+        # --- Step 3: get the model prediction mask, and only perform Top-K within the dilated region ---
         pred_mask = pred[b, 7]
         min_val = pred_mask.min()
         max_val = pred_mask.max()
         normalized_pred_mask = (pred_mask - min_val) / (max_val - min_val)  # [0, 1]
 
-        # 屏蔽掉非膨胀区域
+        # mask out the non-dilated region
         masked_pred = normalized_pred_mask.clone()
-        masked_pred[~dilated_mask] = 0  # 确保这些位置不会被 topk 选中
+        masked_pred[~dilated_mask] = 0  # ensure these positions are not selected by topk
 
         flat_pred = masked_pred.view(-1)
         topk_indices = torch.topk(flat_pred, num_particle).indices
 
         new_mask = torch.zeros_like(pred_mask)
         new_mask.view(-1)[topk_indices] = 1
-        new_mask = (new_mask * 2) - 1  # 映射为 [-1, 1]
+        new_mask = (new_mask * 2) - 1  # map to [-1, 1]
         pred[b, 7] = new_mask
 
-        # --- Step 4: 根据 mask 修改速度通道 ---
+        # --- Step 4: modify the velocity channel based on the mask ---
         binary_mask = ((new_mask + 1) / 2).bool()  # (D, H, W)
 
         for c in range(3):
-            pred[b, c][binary_mask] = pred[b, c][binary_mask]  # 粒子区域保持原预测
+            pred[b, c][binary_mask] = pred[b, c][binary_mask]  # particle region keep original prediction
             current_channel = current_data[b, c]
             current_particle_mask = ((current_data[b, 7] + 1) / 2).bool()
             background_mask = ~current_particle_mask
@@ -92,6 +93,18 @@ def apply_mask_on_velocity(pred, current_data, dilation_radius=5):
 
 
 def get_boundary_condition(future_data, halo=4):
+    """
+    Get the boundary condition of the future data.
+    The boundary mask is a bool mask that is True for the boundary region.
+
+    Args:
+        future_data: future data, shape (b, 8, D, H, W)
+        halo: halo size (default 4)
+
+    Returns:
+        boundary_condition: boundary condition, shape (b, 8, D, H, W)
+        boundary_mask: boundary mask, shape (b, 8, D, H, W)
+    """
     boundary_mask = torch.zeros_like(future_data, dtype=torch.bool)
 
     boundary_mask[:, :, :halo, :, :] = True  # front
@@ -107,7 +120,17 @@ def get_boundary_condition(future_data, halo=4):
 
 
 def find_latest_ckpt(ckpt_dir):
-    # 过滤出所有 checkpoint 文件
+    """
+    Find the latest checkpoint file in the checkpoint directory.
+
+    Args:
+        ckpt_dir: checkpoint directory
+
+    Returns:
+        latest_ckpt: path to the latest checkpoint file
+    """
+
+    # filter out all checkpoint files
     ckpt_files = [
         f
         for f in os.listdir(ckpt_dir)
@@ -116,7 +139,7 @@ def find_latest_ckpt(ckpt_dir):
     if not ckpt_files:
         raise FileNotFoundError(f"No checkpoint files found in {ckpt_dir}")
 
-    # 按训练步数排序
+    # sort by training step
     def get_step(f):
         return int(f.split("-")[1].split(".")[0])
 
@@ -126,6 +149,18 @@ def find_latest_ckpt(ckpt_dir):
 
 
 def main(cfg, weight_path, inference_type):
+    """
+    Main function for inference.
+
+    Args:
+        cfg: config
+        weight_path: path to the checkpoint file
+        inference_type: type of inference
+
+    Returns:
+        None
+    """
+
     if inference_type == "long_rollout":
         time_steps_list = [i for i in range(1, 249)]
     elif inference_type == "debug_rollout":

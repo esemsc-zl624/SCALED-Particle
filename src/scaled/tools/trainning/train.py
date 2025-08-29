@@ -501,7 +501,7 @@ def save_checkpoint(model, save_dir, prefix, ckpt_num, total_limit=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="./config/first_run.yaml")
+    parser.add_argument("--config", type=str, default="exp/01_conv/config/config.yaml")
     args = parser.parse_args()
 
     if args.config[-5:] == ".yaml":
